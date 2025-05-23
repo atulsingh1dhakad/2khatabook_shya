@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AddCustomerPage extends StatefulWidget {
+  final String companyId; // <-- Pass the companyId dynamically
+
+  const AddCustomerPage({super.key, required this.companyId});
+
   @override
   _AddCustomerPageState createState() => _AddCustomerPageState();
 }
@@ -17,17 +22,23 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
     if (!_formKey.currentState!.validate()) return;
     setState(() { _isLoading = true; });
 
-    final url = Uri.parse('http://account.galaxyex.xyz/v1/user/api//account/get-account/67f05603e60febe0e89b7f08');
-    // Adjust payload fields according to your backend's requirements
+    final prefs = await SharedPreferences.getInstance();
+    final authKey = prefs.getString("auth_token");
+
+    final url = Uri.parse('http://account.galaxyex.xyz/v1/user/api//account/add-account');
     final body = {
-      'customer_name': _nameController.text,
+      'customerName': _nameController.text,
+      'companyId': widget.companyId,
       'remark': _remarkController.text,
     };
 
     try {
       final response = await http.post(
         url,
-        headers: {"Content-Type": "application/json"},
+        headers: {
+          "Content-Type": "application/json",
+          "Authkey": authKey ?? "",
+        },
         body: json.encode(body),
       );
       if (response.statusCode == 200) {
@@ -38,8 +49,15 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
         Navigator.pop(context, true); // Return to previous page
       } else {
         // Failure
+        String msg = "Failed to create customer";
+        try {
+          final respJson = json.decode(response.body);
+          if (respJson['meta'] != null && respJson['meta']['msg'] != null) {
+            msg = respJson['meta']['msg'];
+          }
+        } catch (_) {}
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to create customer')),
+          SnackBar(content: Text(msg)),
         );
       }
     } catch (e) {
@@ -76,7 +94,8 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
                 value == null || value.trim().isEmpty ? 'Enter customer name' : null,
               ),
               SizedBox(height: 10),
-              Expanded(
+              Container(
+                height: 100,
                 child: TextFormField(
                   controller: _remarkController,
                   decoration: InputDecoration(
@@ -84,10 +103,12 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
                     border: OutlineInputBorder(),
                     contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                   ),
+                  textAlignVertical: TextAlignVertical.top,
                   maxLines: null,
                   expands: true,
                 ),
               ),
+
             ],
           ),
         ),

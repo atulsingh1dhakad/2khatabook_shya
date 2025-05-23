@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shya_khatabook/presentation/changepass.dart';
+import 'package:shya_khatabook/presentation/staffscreen.dart';
 
 import 'loginscreen.dart';
 
@@ -73,7 +75,12 @@ class _settingscreenState extends State<settingscreen> {
             SidebarButton(
               icon: Icons.group,
               label: "Staff List",
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => StaffScreen()),
+                );
+              },
             ),
             SidebarButton(
               icon: Icons.delete_outline,
@@ -98,7 +105,12 @@ class _settingscreenState extends State<settingscreen> {
             SidebarButton(
               icon: Icons.password,
               label: "Change Password",
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => ChangePass()),
+                );
+              },
             ),
             const Spacer(),
             Padding(

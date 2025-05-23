@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AddCompanyPage extends StatefulWidget {
   @override
@@ -10,39 +11,47 @@ class AddCompanyPage extends StatefulWidget {
 class _AddCompanyPageState extends State<AddCompanyPage> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _remarkController = TextEditingController();
   bool _isLoading = false;
 
-  Future<void> _createCustomer() async {
+  Future<void> _createCompany() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() {
       _isLoading = true;
     });
 
+    final prefs = await SharedPreferences.getInstance();
+    final authKey = prefs.getString("auth_token");
+
     final url = Uri.parse(
-        'http://account.galaxyex.xyz/v1/user/api//account/get-account/67f05603e60febe0e89b7f08');
-    // Adjust payload fields according to your backend's requirements
+        'http://account.galaxyex.xyz/v1/user/api//account/add-company');
     final body = {
-      'customer_name': _nameController.text,
-      'remark': _remarkController.text,
+      'companyName': _nameController.text,
     };
 
     try {
       final response = await http.post(
         url,
-        headers: {"Content-Type": "application/json"},
+        headers: {
+          "Content-Type": "application/json",
+          if (authKey != null) "Authkey": authKey,
+        },
         body: json.encode(body),
       );
       if (response.statusCode == 200) {
-        // Success
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Customer created successfully!')),
+          SnackBar(content: Text('Company created successfully!')),
         );
-        Navigator.pop(context, true); // Return to previous page
+        Navigator.pop(context, true);
       } else {
-        // Failure
+        String msg = "Failed to create company";
+        try {
+          final respJson = json.decode(response.body);
+          if (respJson['meta'] != null && respJson['meta']['msg'] != null) {
+            msg = respJson['meta']['msg'];
+          }
+        } catch (_) {}
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to create customer')),
+          SnackBar(content: Text(msg)),
         );
       }
     } catch (e) {
@@ -64,7 +73,7 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
           color: Colors.white,
         ),
         title: Text(
-          'Add Customer',
+          'Add Company',
           style: TextStyle(color: Colors.white),
         ),
         backgroundColor: Color(0xFF23608A),
@@ -80,15 +89,13 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
                 decoration: InputDecoration(
                   hintText: 'Company Name',
                   border: OutlineInputBorder(),
-                  contentPadding:
-                  EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                 ),
                 validator: (value) => value == null || value.trim().isEmpty
-                    ? 'Enter Company name'
+                    ? 'Enter company name'
                     : null,
               ),
               SizedBox(height: 10),
-
             ],
           ),
         ),
@@ -96,7 +103,7 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.all(8.0),
         child: ElevatedButton.icon(
-          onPressed: _isLoading ? null : _createCustomer,
+          onPressed: _isLoading ? null : _createCompany,
           icon: Icon(Icons.add, color: Colors.white),
           label: Text(
             'Add Company',

@@ -1,8 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class YouWillGetPage extends StatefulWidget {
+  final String accountId;
+  final String accountName;
+  final String companyId;
+
+  const YouWillGetPage({
+    super.key,
+    required this.accountId,
+    required this.accountName,
+    required this.companyId,
+  });
+
   @override
   _YouWillGetPageState createState() => _YouWillGetPageState();
 }
@@ -31,23 +43,35 @@ class _YouWillGetPageState extends State<YouWillGetPage> {
   String get formattedDate =>
       "${_selectedDate.day.toString().padLeft(2, '0')}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.year}";
 
+  String get isoDate =>
+      "${_selectedDate.year.toString().padLeft(4, '0')}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}";
+
   Future<void> _saveData() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() {
       _isLoading = true;
     });
 
-    final url = Uri.parse('http://account.galaxyex.xyz/account/add-ledger/get/67f0b30781ac4b2c6e941ff9');
+    final prefs = await SharedPreferences.getInstance();
+    final authKey = prefs.getString("auth_token");
+
+    final url = Uri.parse('http://account.galaxyex.xyz/v1/user/api//account/add-ledger');
     final body = {
       "amount": _amountController.text,
       "remark": _remarkController.text,
-      "date": "${_selectedDate.year.toString().padLeft(4, '0')}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}",
+      "entryType": "get",
+      "companyId": widget.companyId,
+      "accountId": widget.accountId,
+      "date": isoDate,
     };
 
     try {
       final response = await http.post(
         url,
-        headers: {"Content-Type": "application/json"},
+        headers: {
+          "Content-Type": "application/json",
+          "Authkey": authKey ?? "",
+        },
         body: json.encode(body),
       );
       if (response.statusCode == 200) {
@@ -73,7 +97,7 @@ class _YouWillGetPageState extends State<YouWillGetPage> {
     return Scaffold(
       appBar: AppBar(
         leading: BackButton(),
-        title: Text('You Will Get From Shiva', style: TextStyle(fontSize: 15)),
+        title: Text('You Will Get From ${widget.accountName}', style: TextStyle(fontSize: 15)),
         backgroundColor: Color(0xFF5D8D4B),
       ),
       body: Padding(

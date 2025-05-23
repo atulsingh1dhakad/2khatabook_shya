@@ -9,7 +9,6 @@ import 'package:shya_khatabook/presentation/sidebarscreen.dart';
 
 import 'costumer details.dart';
 
-
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -91,20 +90,32 @@ class _HomeScreenState extends State<HomeScreen> {
           }
         } else {
           setState(() {
-            errorMsg = "Failed to fetch company data!";
+            // Do NOT show error if company fetch fails; show empty state
+            companies = [];
+            selectedCompanyId = null;
+            selectedCompanyName = null;
             isLoadingCompanies = false;
+            errorMsg = null;
           });
         }
       } else {
         setState(() {
-          errorMsg = "Failed to fetch companies: ${response.statusCode}";
+          // Do NOT show error if company fetch fails; show empty state
+          companies = [];
+          selectedCompanyId = null;
+          selectedCompanyName = null;
           isLoadingCompanies = false;
+          errorMsg = null;
         });
       }
     } catch (e) {
       setState(() {
-        errorMsg = "Error fetching companies: $e";
+        // Do NOT show error if company fetch fails; show empty state
+        companies = [];
+        selectedCompanyId = null;
+        selectedCompanyName = null;
         isLoadingCompanies = false;
+        errorMsg = null;
       });
     }
   }
@@ -123,8 +134,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (authKey == null) {
         setState(() {
-          errorMsg = "No authentication token found. Please log in again.";
+          // Do NOT show error if account fetch fails; show empty state
+          accounts = [];
+          totalCredit = 0;
+          totalDebit = 0;
+          balance = 0;
           isLoadingAccounts = false;
+          errorMsg = null;
         });
         return;
       }
@@ -149,20 +165,35 @@ class _HomeScreenState extends State<HomeScreen> {
           });
         } else {
           setState(() {
-            errorMsg = "Failed to fetch accounts data!";
+            // Do NOT show error if account fetch fails; show empty state
+            accounts = [];
+            totalCredit = 0;
+            totalDebit = 0;
+            balance = 0;
             isLoadingAccounts = false;
+            errorMsg = null;
           });
         }
       } else {
         setState(() {
-          errorMsg = "Failed to fetch accounts: ${response.statusCode}";
+          // Do NOT show error if account fetch fails; show empty state
+          accounts = [];
+          totalCredit = 0;
+          totalDebit = 0;
+          balance = 0;
           isLoadingAccounts = false;
+          errorMsg = null;
         });
       }
     } catch (e) {
       setState(() {
-        errorMsg = "Error fetching accounts: $e";
+        // Do NOT show error if account fetch fails; show empty state
+        accounts = [];
+        totalCredit = 0;
+        totalDebit = 0;
+        balance = 0;
         isLoadingAccounts = false;
+        errorMsg = null;
       });
     }
   }
@@ -238,8 +269,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           )
                               : '',
                           style: const TextStyle(
-                              color: Color(0xFF205781),
-                              fontWeight: FontWeight.bold),
+                              color: Color(0xFF205781), fontWeight: FontWeight.bold),
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -268,17 +298,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     context,
                     MaterialPageRoute(builder: (context) => const settingscreen()),
                   );
-                }
-            )
+                })
           ],
         ),
         toolbarHeight: 70,
       ),
       body: Stack(
         children: [
-          errorMsg != null
-              ? Center(child: Text(errorMsg!))
-              : Column(
+          Column(
             children: [
               Column(
                 mainAxisSize: MainAxisSize.min,
@@ -300,15 +327,18 @@ class _HomeScreenState extends State<HomeScreen> {
                               children: [
                                 InfoCard(
                                   title: "You Will Give",
-                                  amount: "₹${totalDebit.toStringAsFixed(2)}",
+                                  amount: "₹${(filteredAccounts.isEmpty ? 0 : totalDebit).toStringAsFixed(2)}",
+                                  amountFontSize: 12,
                                 ),
                                 InfoCard(
                                   title: "You Will Get",
-                                  amount: "₹${totalCredit.toStringAsFixed(2)}",
+                                  amount: "₹${(filteredAccounts.isEmpty ? 0 : totalCredit).toStringAsFixed(2)}",
+                                  amountFontSize: 12,
                                 ),
                                 InfoCard(
                                   title: "Balance",
-                                  amount: "₹${balance.toStringAsFixed(2)}",
+                                  amount: "₹${(filteredAccounts.isEmpty ? 0 : balance).toStringAsFixed(2)}",
+                                  amountFontSize: 12,
                                 ),
                               ],
                             ),
@@ -358,14 +388,28 @@ class _HomeScreenState extends State<HomeScreen> {
               Expanded(
                 child: isLoadingAccounts
                     ? const Center(child: CircularProgressIndicator())
+                    : filteredAccounts.isEmpty
+                    ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.person_outline, size: 70, color: Colors.grey.withOpacity(0.7)),
+                      const SizedBox(height: 12),
+                      Text(
+                        "No customer available",
+                        style: TextStyle(fontSize: 18, color: Colors.grey[700]),
+                      ),
+                    ],
+                  ),
+                )
                     : ListView.builder(
                   itemCount: filteredAccounts.length,
                   itemBuilder: (context, index) {
                     final acc = filteredAccounts[index];
-
-                    // Safeguard against null values in the account data
                     final name = acc['name'] ?? "Unknown Name";
                     final totalBalance = acc['total_Balance'] ?? 0.0;
+                    final accountId = acc['accountId'];
+                    final companyId = selectedCompanyId;
 
                     return InkWell(
                       onTap: () {
@@ -373,12 +417,11 @@ class _HomeScreenState extends State<HomeScreen> {
                           context,
                           MaterialPageRoute(
                             builder: (context) => CustomerDetails(
-                              accountId: "67f0b30781ac4b2c6e941ff9",
-                              accountName: "Shiva",
+                              accountId: accountId,
+                              companyId: companyId!,
                             ),
                           ),
                         );
-
                       },
                       child: CustomerTile(
                         name: name,
@@ -387,8 +430,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     );
                   },
                 ),
-              )
-
+              ),
             ],
           ),
           // Dropdown Menu Overlay (Smaller, Blurry)
@@ -499,10 +541,11 @@ class _HomeScreenState extends State<HomeScreen> {
                               }),
                               const SizedBox(height: 3),
                               ElevatedButton.icon(
-                                onPressed: () {Navigator.push(
-                                  context,
-                                  MaterialPageRoute(builder: (context) => AddCompanyPage()),
-                                );
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (context) => AddCompanyPage()),
+                                  );
                                 },
                                 icon: const Icon(Icons.add, size: 20, color: Colors.white),
                                 label: const Padding(
@@ -534,46 +577,50 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-          // Sticky Add Customer Banner
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: SafeArea(
-              top: false,
-              child: GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => AddCustomerPage()),
-                  );
-                },
-                child: Container(
-                  height: 50,
-                  width: double.infinity,
-                  color: const Color(0xFF205781),
-                  alignment: Alignment.center,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
-                      Icon(Icons.add, color: Colors.white, size: 28),
-                      SizedBox(width: 12),
-                      Text(
-                        "Add Customer",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ],
+        ],
+      ),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: GestureDetector(
+          onTap: () {
+            if (selectedCompanyId == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("Please select a company first!"))
+              );
+              return;
+            }
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => AddCustomerPage(companyId: selectedCompanyId!),
+              ),
+            ).then((value) {
+              if (value == true) fetchAccounts(selectedCompanyId!);
+            });
+          },
+          child: Container(
+            height: 50,
+            width: double.infinity,
+            color: const Color(0xFF205781),
+            alignment: Alignment.center,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: const [
+                Icon(Icons.add, color: Colors.white, size: 28),
+                SizedBox(width: 12),
+                Text(
+                  "Add Customer",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
                   ),
                 ),
-              ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -582,8 +629,13 @@ class _HomeScreenState extends State<HomeScreen> {
 class InfoCard extends StatelessWidget {
   final String title;
   final String amount;
+  final double amountFontSize;
 
-  const InfoCard({required this.title, required this.amount});
+  const InfoCard({
+    required this.title,
+    required this.amount,
+    this.amountFontSize = 16,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -593,9 +645,9 @@ class InfoCard extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           amount,
-          style: const TextStyle(
-            color: Color(0xFF2D486C),
-            fontSize: 16,
+          style: TextStyle(
+            color: const Color(0xFF2D486C),
+            fontSize: amountFontSize,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -628,11 +680,4 @@ class CustomerTile extends StatelessWidget {
       ],
     );
   }
-}
-
-void main() {
-  runApp(const MaterialApp(
-    debugShowCheckedModeBanner: false,
-    home: HomeScreen(),
-  ));
 }
