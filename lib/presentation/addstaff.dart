@@ -1,0 +1,283 @@
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+
+class AddStaffScreen extends StatefulWidget {
+  /// Call this after successful staff addition to refresh your main list.
+  final VoidCallback onStaffAdded;
+
+  const AddStaffScreen({
+    Key? key,
+    required this.onStaffAdded,
+  }) : super(key: key);
+
+  @override
+  State<AddStaffScreen> createState() => _AddStaffScreenState();
+}
+
+class _AddStaffScreenState extends State<AddStaffScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final nameController = TextEditingController();
+  final userIdController = TextEditingController();
+  final passwordController = TextEditingController();
+  final searchController = TextEditingController();
+  bool isFirstTime = false;
+  bool isCreate = false;
+  Map<String, bool> selectedCompanies = {};
+  Map<String, String> companyActions = {};
+  List<Map<String, dynamic>> companyList = [];
+  List<Map<String, dynamic>> filteredCompanyList = [];
+  bool loading = false;
+  bool fetchingCompanies = true;
+
+  @override
+  void initState() {
+    super.initState();
+    fetchCompanies();
+    searchController.addListener(onSearchChanged);
+  }
+
+  @override
+  void dispose() {
+    searchController.removeListener(onSearchChanged);
+    searchController.dispose();
+    super.dispose();
+  }
+
+  void onSearchChanged() {
+    final query = searchController.text.trim().toLowerCase();
+    setState(() {
+      if (query.isEmpty) {
+        filteredCompanyList = List<Map<String, dynamic>>.from(companyList);
+      } else {
+        filteredCompanyList = companyList.where((company) {
+          final id = (company['companyId'] ?? company['_id'] ?? '').toString().toLowerCase();
+          final name = (company['companyName'] ?? '').toString().toLowerCase();
+          return id.contains(query) || name.contains(query);
+        }).toList();
+      }
+    });
+  }
+
+  Future<String?> getAuthToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString("auth_token");
+  }
+
+  Future<void> fetchCompanies() async {
+    setState(() {
+      fetchingCompanies = true;
+    });
+    final url = "http://account.galaxyex.xyz/v1/user/api/account/get-company";
+    final authKey = await getAuthToken();
+    if (authKey == null) {
+      setState(() {
+        fetchingCompanies = false;
+      });
+      return;
+    }
+    try {
+      final response = await http.get(Uri.parse(url), headers: {
+        "Authkey": authKey,
+        "Content-Type": "application/json",
+      });
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> jsonData = json.decode(response.body);
+        if (jsonData['meta'] != null &&
+            jsonData['meta']['status'] == true &&
+            jsonData['data'] is List) {
+          companyList = List<Map<String, dynamic>>.from(jsonData['data'] ?? []);
+          filteredCompanyList = List<Map<String, dynamic>>.from(companyList);
+          for (var company in companyList) {
+            final id = company['companyId'] ?? company['_id'];
+            selectedCompanies[id] = false;
+            companyActions[id] = "NONE";
+          }
+        }
+      }
+    } catch (_) {}
+    setState(() {
+      fetchingCompanies = false;
+    });
+  }
+
+  Future<void> addStaff() async {
+    if (!_formKey.currentState!.validate()) return;
+    List<Map<String, String>> companyAccess = [];
+    selectedCompanies.forEach((id, isSelected) {
+      if (isSelected && (companyActions[id] != null && companyActions[id] != "NONE")) {
+        companyAccess.add({
+          "companyId": id,
+          "action": companyActions[id]!,
+        });
+      }
+    });
+    if (companyAccess.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Select at least one company with action.")),
+      );
+      return;
+    }
+    setState(() => loading = true);
+    final payload = {
+      "name": nameController.text.trim(),
+      "loginId": userIdController.text.trim(),
+      "password": passwordController.text.trim(),
+      "isFirstTime": isFirstTime,
+      "isCreate": isCreate,
+      "companyAccess": companyAccess,
+    };
+
+    final authKey = await getAuthToken();
+    if (authKey == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Authentication token missing.")),
+      );
+      setState(() => loading = false);
+      return;
+    }
+    final url = "http://account.galaxyex.xyz/v1/user/api/user/add-user";
+    final response = await http.post(
+      Uri.parse(url),
+      headers: {
+        "Authkey": authKey,
+        "Content-Type": "application/json",
+      },
+      body: jsonEncode(payload),
+    );
+    setState(() => loading = false);
+    if (response.statusCode == 200) {
+      final jsonData = json.decode(response.body);
+      if (jsonData['meta'] != null && jsonData['meta']['status'] == true) {
+        widget.onStaffAdded();
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Staff added successfully!")),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(jsonData['meta']?['msg'] ?? "Failed to add staff.")),
+        );
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Server error: ${response.statusCode}")),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Add Staff", style: TextStyle(color: Colors.white)),
+        backgroundColor: const Color(0xFF265E85),
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: fetchingCompanies
+          ? const Center(child: CircularProgressIndicator())
+          : AbsorbPointer(
+        absorbing: loading,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(18),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextFormField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: "Name"),
+                  validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? "Name required" : null,
+                ),
+                TextFormField(
+                  controller: userIdController,
+                  decoration: const InputDecoration(labelText: "UserID"),
+                  validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? "UserID required" : null,
+                ),
+                TextFormField(
+                  controller: passwordController,
+                  decoration: const InputDecoration(labelText: "Password"),
+                  validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? "Password required" : null,
+                ),
+                const SizedBox(height: 8),
+                // Search Bar
+                TextField(
+                  controller: searchController,
+                  decoration: InputDecoration(
+                    labelText: "Search company by name or id",
+                    prefixIcon: const Icon(Icons.search),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  "Select Companies & Actions",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                // Company List
+                ...filteredCompanyList.map((company) {
+                  final id = company['companyId'] ?? company['_id'];
+                  final name = company['companyName'] ?? '';
+                  return Row(
+                    children: [
+                      Checkbox(
+                        value: selectedCompanies[id] ?? false,
+                        onChanged: (val) {
+                          setState(() {
+                            selectedCompanies[id] = val ?? false;
+                          });
+                        },
+                      ),
+                      Expanded(child: Text("$name ($id)", style: const TextStyle(fontSize: 15))),
+                      const SizedBox(width: 8),
+                      DropdownButton<String>(
+                        value: companyActions[id],
+                        items: ['VIEW', 'VIEW-EDIT', 'NONE']
+                            .map((e) => DropdownMenuItem(
+                          value: e,
+                          child: Text(e),
+                        ))
+                            .toList(),
+                        onChanged: (val) {
+                          setState(() {
+                            companyActions[id] = val ?? "NONE";
+                          });
+                        },
+                      )
+                    ],
+                  );
+                }).toList(),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: loading ? null : addStaff,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: loading
+                        ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
+                        : const Text("Save", style: TextStyle(color: Colors.white)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

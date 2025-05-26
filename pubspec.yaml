@@ -38,6 +38,8 @@ dependencies:
   http: ^1.4.0
   google_fonts: ^6.2.1
   shared_preferences: ^2.5.3
+  intl: ^0.20.2
+  flutter_simple_calculator: ^2.4.0
 
 dev_dependencies:
   flutter_test:

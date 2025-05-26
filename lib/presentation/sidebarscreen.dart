@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shya_khatabook/presentation/allcompanytrail.dart';
 import 'package:shya_khatabook/presentation/changepass.dart';
-import 'package:shya_khatabook/presentation/staffscreen.dart';
-
+import 'package:shya_khatabook/security/secureform.dart';
+import 'package:shya_khatabook/testing/fetchstaff.dart';
 import 'loginscreen.dart';
 
 // Dummy LoginScreen for demonstration. Replace with your actual login screen import.
@@ -61,58 +62,78 @@ class _settingscreenState extends State<settingscreen> {
               ),
             ),
             const SizedBox(height: 18),
-            SidebarButton(
-              icon: Icons.arrow_back,
-              label: "Back",
-              onTap: null, // default pop by InkWell
-              isBack: true,
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    SidebarButton(
+                      icon: Icons.arrow_back,
+                      label: "Back",
+                      onTap: null, // default pop by InkWell
+                      isBack: true,
+                    ),
+                    SidebarButton(
+                      icon: Icons.all_inbox,
+                      label: "All Company Trial",
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => AllCompanyTrialScreen()),
+                        );
+                      },
+                    ),
+                    SidebarButton(
+                      icon: Icons.group,
+                      label: "Staff List",
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => StaffListPage()),
+                        );
+                      },
+                    ),
+                    SidebarButton(
+                      icon: Icons.delete_outline,
+                      label: "Recycle Bin",
+                      onTap: () {},
+                    ),
+                    SidebarButton(
+                      icon: Icons.language,
+                      label: "Change Language",
+                      onTap: () {},
+                    ),
+                    SidebarButton(
+                      icon: Icons.attach_money,
+                      label: "Currency Settings",
+                      onTap: () {},
+                    ),
+                    SidebarButton(
+                      icon: Icons.backup_outlined,
+                      label: "Backup Settings",
+                      onTap: () {},
+                    ),
+                    SidebarButton(
+                      icon: Icons.security,
+                      label: "Security",
+                      onTap: () {
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => SecurityPinScreen(),));
+                      },
+                    ),
+                    SidebarButton(
+                      icon: Icons.password,
+                      label: "Change Password",
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => ChangePass()),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 18),
+                  ],
+                ),
+              ),
             ),
-            SidebarButton(
-              icon: Icons.all_inbox,
-              label: "All Company Trial",
-              onTap: () {},
-            ),
-            SidebarButton(
-              icon: Icons.group,
-              label: "Staff List",
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => StaffScreen()),
-                );
-              },
-            ),
-            SidebarButton(
-              icon: Icons.delete_outline,
-              label: "Recycle Bin",
-              onTap: () {},
-            ),
-            SidebarButton(
-              icon: Icons.language,
-              label: "Change Language",
-              onTap: () {},
-            ),
-            SidebarButton(
-              icon: Icons.attach_money,
-              label: "Currency Settings",
-              onTap: () {},
-            ),
-            SidebarButton(
-              icon: Icons.backup_outlined,
-              label: "Backup Settings",
-              onTap: () {},
-            ),
-            SidebarButton(
-              icon: Icons.password,
-              label: "Change Password",
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => ChangePass()),
-                );
-              },
-            ),
-            const Spacer(),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24.0),
               child: GestureDetector(

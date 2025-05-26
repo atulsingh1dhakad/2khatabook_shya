@@ -7,7 +7,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'homescreen.dart';
 
-
 // You can move this to consts.dart if you wish
 const String loginAuthUrl = "http://account.galaxyex.xyz/v1/user/api//user/login";
 
@@ -19,14 +18,14 @@ class EmailLoginScreen extends StatefulWidget {
 }
 
 class _EmailLoginScreenState extends State<EmailLoginScreen> {
-  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _loginIdController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
 
-  void _sendLoginRequest(String email, String password) async {
-    if (email.isEmpty || password.isEmpty) {
+  void _sendLoginRequest(String loginId, String password) async {
+    if (loginId.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter email and password')),
+        const SnackBar(content: Text('Please enter Login ID and password')),
       );
       return;
     }
@@ -39,7 +38,7 @@ class _EmailLoginScreenState extends State<EmailLoginScreen> {
       final response = await http.post(
         Uri.parse(loginAuthUrl),
         headers: {"Content-Type": "application/json"},
-        body: json.encode({"email": email, "password": password}),
+        body: json.encode({"loginId": loginId, "password": password}),
       );
 
       print("Login response status: ${response.statusCode}");
@@ -133,13 +132,13 @@ class _EmailLoginScreenState extends State<EmailLoginScreen> {
                         ),
                         const SizedBox(height: 20),
                         TextField(
-                          controller: _emailController,
+                          controller: _loginIdController,
                           keyboardType: TextInputType.emailAddress,
                           decoration: InputDecoration(
                             fillColor: Colors.white70,
                             filled: true,
                             prefixIcon: const Icon(Icons.mail, size: 20),
-                            hintText: 'Email',
+                            hintText: 'Login ID',
                             hintStyle: const TextStyle(fontWeight: FontWeight.w400),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
@@ -177,7 +176,7 @@ class _EmailLoginScreenState extends State<EmailLoginScreen> {
                           onPressed: _isLoading
                               ? null
                               : () => _sendLoginRequest(
-                            _emailController.text.trim(),
+                            _loginIdController.text.trim(),
                             _passwordController.text.trim(),
                           ),
                           style: ElevatedButton.styleFrom(

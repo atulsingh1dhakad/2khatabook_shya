@@ -4,7 +4,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'loginscreen.dart';
+
+import '../presentation/loginscreen.dart';
 
 // --- Color Theme Based On Image --- //
 const Color kPrimaryBlue = Color(0xFF225B84); // AppBar and button border
@@ -13,34 +14,39 @@ const Color kBackground = Colors.white;
 const Color kButtonBorder = Color(0xFF225B84);
 const double kButtonRadius = 8;
 
-class ChangePass extends StatefulWidget {
-  const ChangePass({super.key});
+class SecurityPinScreen extends StatefulWidget {
+  const SecurityPinScreen({super.key});
 
   @override
-  State<ChangePass> createState() => _ChangePassState();
+  State<SecurityPinScreen> createState() => _SecurityPinScreenState();
 }
 
-class _ChangePassState extends State<ChangePass> {
-  final TextEditingController currentPassController = TextEditingController();
-  final TextEditingController newPassController = TextEditingController();
-  final TextEditingController repeatNewPassController = TextEditingController();
+class _SecurityPinScreenState extends State<SecurityPinScreen> {
+  final TextEditingController pinController = TextEditingController();
 
   bool isLoading = false;
-  bool _showCurrent = false;
-  bool _showNew = false;
-  bool _showRepeat = false;
+  bool _showPin = false;
+  bool _securityEnabled = false;
 
-  Future<void> _changePassword() async {
-    final oldPassword = currentPassController.text.trim();
-    final newPassword = newPassController.text.trim();
-    final confirmPassword = repeatNewPassController.text.trim();
+  void _toggleSecurity(bool value) {
+    setState(() {
+      _securityEnabled = value;
+    });
+    // Optionally, persist the security status or perform other logic here.
+    // For example, you could save to SharedPreferences:
+    // SharedPreferences prefs = await SharedPreferences.getInstance();
+    // prefs.setBool("security_enabled", value);
+  }
 
-    if (oldPassword.isEmpty || newPassword.isEmpty || confirmPassword.isEmpty) {
-      _showSnackBar("Please fill all fields");
+  Future<void> _createPin() async {
+    final pin = pinController.text.trim();
+
+    if (pin.isEmpty) {
+      _showSnackBar("Please enter a PIN");
       return;
     }
-    if (newPassword != confirmPassword) {
-      _showSnackBar("New passwords do not match");
+    if (pin.length < 4 || pin.length > 6 || int.tryParse(pin) == null) {
+      _showSnackBar("PIN must be a 4-6 digit number");
       return;
     }
 
@@ -59,11 +65,10 @@ class _ChangePassState extends State<ChangePass> {
       return;
     }
 
-    final url = Uri.parse("http://account.galaxyex.xyz/v1/user/api/user/change-password");
+    // Use your real API endpoint for creating PIN (replace the URL below)
+    final url = Uri.parse("http://account.galaxyex.xyz/v1/user/api/user/create-pin");
     final body = jsonEncode({
-      "oldPassword": oldPassword,
-      "newPassword": newPassword,
-      "confirmPassword": confirmPassword,
+      "pin": pin,
     });
 
     try {
@@ -87,7 +92,7 @@ class _ChangePassState extends State<ChangePass> {
         setState(() {
           isLoading = false;
         });
-        String msg = data["meta"]?["msg"] ?? "Failed to change password";
+        String msg = data["meta"]?["msg"] ?? "Failed to create PIN";
         _showSnackBar(msg);
       }
     } catch (e) {
@@ -116,8 +121,8 @@ class _ChangePassState extends State<ChangePass> {
           }
         });
         return AlertDialog(
-          title: const Text("Password Changed"),
-          content: const Text("Your password has been changed. Please relogin."),
+          title: const Text("PIN Created"),
+          content: const Text("Your security PIN has been set. Please relogin."),
           actions: [
             TextButton(
               child: const Text("OK"),
@@ -142,11 +147,11 @@ class _ChangePassState extends State<ChangePass> {
     );
   }
 
-  Widget _passwordField({
+  Widget _pinField({
     required TextEditingController controller,
     required String label,
     required String placeholder,
-    required bool showPassword,
+    required bool showPin,
     required VoidCallback onToggle,
   }) {
     return Padding(
@@ -169,9 +174,11 @@ class _ChangePassState extends State<ChangePass> {
               CupertinoTextField(
                 controller: controller,
                 placeholder: placeholder,
-                obscureText: !showPassword,
+                obscureText: !showPin,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
                 padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 12),
-                style: const TextStyle(fontSize: 16),
+                style: const TextStyle(fontSize: 16, letterSpacing: 7),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   border: Border.all(color: kButtonBorder, width: 1.4),
@@ -180,17 +187,49 @@ class _ChangePassState extends State<ChangePass> {
               ),
               IconButton(
                 icon: Icon(
-                  showPassword ? Icons.visibility_off : Icons.visibility,
+                  showPin ? Icons.visibility_off : Icons.visibility,
                   color: kPrimaryBlue,
                 ),
                 onPressed: onToggle,
                 splashRadius: 20,
-                tooltip: showPassword ? "Hide password" : "View password",
+                tooltip: showPin ? "Hide PIN" : "View PIN",
               ),
             ],
           ),
         ],
       ),
+    );
+  }
+
+  Widget _securitySwitch() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          'Security is ',
+          style: const TextStyle(
+            fontSize: 17,
+            color: kPrimaryBlue,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        Text(
+          _securityEnabled ? 'ON' : 'OFF',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.bold,
+            color: _securityEnabled ? Colors.green : Colors.red,
+          ),
+        ),
+        const SizedBox(width: 14),
+        Switch(
+          value: _securityEnabled,
+          activeColor: Colors.green,
+          inactiveThumbColor: Colors.red,
+          inactiveTrackColor: Colors.red[200],
+          onChanged: _toggleSecurity,
+        ),
+      ],
     );
   }
 
@@ -205,7 +244,7 @@ class _ChangePassState extends State<ChangePass> {
         ),
         elevation: 0,
         title: const Text(
-          "Change Password",
+          "Security Number",
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
         ),
         centerTitle: true,
@@ -222,33 +261,15 @@ class _ChangePassState extends State<ChangePass> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Column(
-                    children: [
-                    ],
-                  ),
-                ),
-                _passwordField(
-                  controller: currentPassController,
-                  label: "Current password",
-                  placeholder: "Enter your current password",
-                  showPassword: _showCurrent,
-                  onToggle: () => setState(() => _showCurrent = !_showCurrent),
-                ),
-                _passwordField(
-                  controller: newPassController,
-                  label: "New password",
-                  placeholder: "Enter a new password",
-                  showPassword: _showNew,
-                  onToggle: () => setState(() => _showNew = !_showNew),
-                ),
-                _passwordField(
-                  controller: repeatNewPassController,
-                  label: "Confirm new password",
-                  placeholder: "Confirm new password",
-                  showPassword: _showRepeat,
-                  onToggle: () => setState(() => _showRepeat = !_showRepeat),
+                const SizedBox(height: 16),
+                _securitySwitch(),
+                const SizedBox(height: 30),
+                _pinField(
+                  controller: pinController,
+                  label: "Security Number",
+                  placeholder: "Enter your Number",
+                  showPin: _showPin,
+                  onToggle: () => setState(() => _showPin = !_showPin),
                 ),
                 const SizedBox(height: 8),
                 SizedBox(
@@ -259,15 +280,15 @@ class _ChangePassState extends State<ChangePass> {
                       : OutlinedButton(
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.white,
-                      backgroundColor: Color(0xFF225B84),
+                      backgroundColor: kPrimaryBlue,
                       side: const BorderSide(color: kPrimaryBlue, width: 1.8),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(kButtonRadius),
                       ),
                       textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
                     ),
-                    onPressed: _changePassword,
-                    child: const Text("Change password"),
+                    onPressed: _createPin,
+                    child: const Text("Create Security Number"),
                   ),
                 ),
                 const SizedBox(height: 36),
