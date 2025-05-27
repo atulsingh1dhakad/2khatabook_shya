@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shya_khatabook/presentation/allcompanytrail.dart';
 import 'package:shya_khatabook/presentation/changepass.dart';
+import 'package:shya_khatabook/presentation/recyclebinscreen.dart';
 import 'package:shya_khatabook/security/secureform.dart';
 import 'package:shya_khatabook/testing/fetchstaff.dart';
 import 'loginscreen.dart';
@@ -95,7 +96,12 @@ class _settingscreenState extends State<settingscreen> {
                     SidebarButton(
                       icon: Icons.delete_outline,
                       label: "Recycle Bin",
-                      onTap: () {},
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => RecycleBinScreen()),
+                        );
+                      },
                     ),
                     SidebarButton(
                       icon: Icons.language,

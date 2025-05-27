@@ -9,6 +9,12 @@ import 'package:shya_khatabook/presentation/sidebarscreen.dart';
 
 import 'costumer details.dart';
 
+// Standard font sizes for consistency
+const double kFontSmall = 12;
+const double kFontMedium = 16;
+const double kFontLarge = 15;
+const double kFontXLarge = 18;
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -90,7 +96,6 @@ class _HomeScreenState extends State<HomeScreen> {
           }
         } else {
           setState(() {
-            // Do NOT show error if company fetch fails; show empty state
             companies = [];
             selectedCompanyId = null;
             selectedCompanyName = null;
@@ -100,7 +105,6 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       } else {
         setState(() {
-          // Do NOT show error if company fetch fails; show empty state
           companies = [];
           selectedCompanyId = null;
           selectedCompanyName = null;
@@ -110,7 +114,6 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     } catch (e) {
       setState(() {
-        // Do NOT show error if company fetch fails; show empty state
         companies = [];
         selectedCompanyId = null;
         selectedCompanyName = null;
@@ -134,7 +137,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (authKey == null) {
         setState(() {
-          // Do NOT show error if account fetch fails; show empty state
           accounts = [];
           totalCredit = 0;
           totalDebit = 0;
@@ -165,7 +167,6 @@ class _HomeScreenState extends State<HomeScreen> {
           });
         } else {
           setState(() {
-            // Do NOT show error if account fetch fails; show empty state
             accounts = [];
             totalCredit = 0;
             totalDebit = 0;
@@ -176,7 +177,6 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       } else {
         setState(() {
-          // Do NOT show error if account fetch fails; show empty state
           accounts = [];
           totalCredit = 0;
           totalDebit = 0;
@@ -187,7 +187,6 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     } catch (e) {
       setState(() {
-        // Do NOT show error if account fetch fails; show empty state
         accounts = [];
         totalCredit = 0;
         totalDebit = 0;
@@ -251,7 +250,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   });
                 },
                 child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                  padding: const EdgeInsets.symmetric(
+                      vertical: 8, horizontal: 12),
                   decoration: BoxDecoration(
                     color: const Color(0xFF205781),
                     borderRadius: BorderRadius.circular(12),
@@ -265,26 +265,31 @@ class _HomeScreenState extends State<HomeScreen> {
                           selectedCompanyName != null
                               ? getInitials(
                             selectedCompanyName!,
-                            companies.indexWhere((c) => c['companyName'] == selectedCompanyName),
+                            companies.indexWhere((c) =>
+                            c['companyName'] ==
+                                selectedCompanyName),
                           )
                               : '',
-                          style: const TextStyle(
-                              color: Color(0xFF205781), fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                              color: const Color(0xFF205781),
+                              fontWeight: FontWeight.bold,
+                              fontSize: kFontLarge),
                         ),
                       ),
                       const SizedBox(width: 10),
                       Flexible(
                         child: Text(
                           selectedCompanyName ?? "Select Company",
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w700,
-                            fontSize: 20,
+                            fontSize: kFontXLarge,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      const Icon(Icons.arrow_drop_down, color: Colors.white, size: 32),
+                      const Icon(Icons.arrow_drop_down,
+                          color: Colors.white, size: 32),
                     ],
                   ),
                 ),
@@ -292,11 +297,13 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(width: 10),
             GestureDetector(
-                child: const Icon(Icons.settings_suggest_outlined, color: Colors.white),
+                child: const Icon(Icons.settings_suggest_outlined,
+                    color: Colors.white),
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const settingscreen()),
+                    MaterialPageRoute(
+                        builder: (context) => const settingscreen()),
                   );
                 })
           ],
@@ -321,24 +328,28 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Column(
                         children: [
                           Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 16.0),
+                            padding:
+                            const EdgeInsets.symmetric(vertical: 16.0),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceAround,
                               children: [
                                 InfoCard(
                                   title: "You Will Give",
-                                  amount: "₹${(filteredAccounts.isEmpty ? 0 : totalDebit).toStringAsFixed(2)}",
-                                  amountFontSize: 12,
+                                  amount:
+                                  "₹${(filteredAccounts.isEmpty ? 0 : totalDebit).toStringAsFixed(2)}",
+                                  amountFontSize: kFontLarge,
                                 ),
                                 InfoCard(
                                   title: "You Will Get",
-                                  amount: "₹${(filteredAccounts.isEmpty ? 0 : totalCredit).toStringAsFixed(2)}",
-                                  amountFontSize: 12,
+                                  amount:
+                                  "₹${(filteredAccounts.isEmpty ? 0 : totalCredit).toStringAsFixed(2)}",
+                                  amountFontSize: kFontLarge,
                                 ),
                                 InfoCard(
                                   title: "Balance",
-                                  amount: "₹${(filteredAccounts.isEmpty ? 0 : balance).toStringAsFixed(2)}",
-                                  amountFontSize: 12,
+                                  amount:
+                                  "₹${(filteredAccounts.isEmpty ? 0 : balance).toStringAsFixed(2)}",
+                                  amountFontSize: kFontLarge,
                                 ),
                               ],
                             ),
@@ -353,9 +364,11 @@ class _HomeScreenState extends State<HomeScreen> {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: const [
-                                Icon(Icons.file_copy, size: 20, color: Colors.grey),
+                                Icon(Icons.file_copy,
+                                    size: 20, color: Colors.grey),
                                 SizedBox(width: 8),
-                                Text("Get Report"),
+                                Text("Get Report",
+                                    style: TextStyle(fontSize: 12)),
                               ],
                             ),
                           ),
@@ -371,6 +384,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   decoration: InputDecoration(
                     prefixIcon: const Icon(Icons.search),
                     hintText: "Search Customer",
+                    hintStyle: TextStyle(fontSize: kFontMedium),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: const BorderSide(color: Colors.grey),
@@ -378,6 +392,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     filled: true,
                     fillColor: const Color(0xFFF5F5F5),
                   ),
+                  style: TextStyle(fontSize: kFontMedium),
                   onChanged: (value) {
                     setState(() {
                       searchQuery = value;
@@ -393,11 +408,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.person_outline, size: 70, color: Colors.grey.withOpacity(0.7)),
+                      Icon(Icons.person_outline,
+                          size: 70,
+                          color: Colors.grey.withOpacity(0.7)),
                       const SizedBox(height: 12),
                       Text(
                         "No customer available",
-                        style: TextStyle(fontSize: 18, color: Colors.grey[700]),
+                        style: TextStyle(
+                            fontSize: kFontLarge,
+                            color: Colors.grey[700]),
                       ),
                     ],
                   ),
@@ -425,7 +444,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       },
                       child: CustomerTile(
                         name: name,
-                        amount: "₹${totalBalance.toStringAsFixed(2)}",
+                        amount:
+                        "₹${totalBalance.toStringAsFixed(2)}",
                       ),
                     );
                   },
@@ -452,7 +472,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Container(
                         width: 320,
                         constraints: const BoxConstraints(maxHeight: 400),
-                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 12, horizontal: 8),
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.93),
                           borderRadius: BorderRadius.circular(14),
@@ -473,13 +494,16 @@ class _HomeScreenState extends State<HomeScreen> {
                               ...companies.asMap().entries.map((entry) {
                                 final index = entry.key;
                                 final company = entry.value;
-                                final bool isSelected = selectedCompanyId == company['companyId'];
+                                final bool isSelected =
+                                    selectedCompanyId == company['companyId'];
                                 return GestureDetector(
                                   onTap: () => onCompanyChanged(
-                                      company['companyId'], company['companyName']),
+                                      company['companyId'],
+                                      company['companyName']),
                                   child: Container(
                                     margin: const EdgeInsets.only(bottom: 8),
-                                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 10, horizontal: 8),
                                     decoration: BoxDecoration(
                                       color: isSelected
                                           ? const Color(0xFF205781)
@@ -496,13 +520,15 @@ class _HomeScreenState extends State<HomeScreen> {
                                       children: [
                                         CircleAvatar(
                                           radius: 16,
-                                          backgroundColor: const Color(0xFF205781),
+                                          backgroundColor:
+                                          const Color(0xFF205781),
                                           child: Text(
-                                            getInitials(company['companyName'], index),
+                                            getInitials(
+                                                company['companyName'], index),
                                             style: const TextStyle(
                                               color: Colors.white,
                                               fontWeight: FontWeight.bold,
-                                              fontSize: 13,
+                                              fontSize: kFontMedium,
                                               letterSpacing: 1.2,
                                             ),
                                           ),
@@ -510,14 +536,18 @@ class _HomeScreenState extends State<HomeScreen> {
                                         const SizedBox(width: 10),
                                         Expanded(
                                           child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                             children: [
                                               Text(
                                                 company['companyName'],
                                                 style: TextStyle(
-                                                  color: isSelected ? Colors.white : const Color(0xFF205781),
+                                                  color: isSelected
+                                                      ? Colors.white
+                                                      : const Color(
+                                                      0xFF205781),
                                                   fontWeight: FontWeight.w600,
-                                                  fontSize: 16,
+                                                  fontSize: kFontLarge,
                                                 ),
                                               ),
                                               const SizedBox(height: 1),
@@ -525,10 +555,12 @@ class _HomeScreenState extends State<HomeScreen> {
                                                 "4 Customers", // replace with real value if available
                                                 style: TextStyle(
                                                   color: isSelected
-                                                      ? Colors.white.withOpacity(0.8)
-                                                      : const Color(0xFF205781),
+                                                      ? Colors.white
+                                                      .withOpacity(0.8)
+                                                      : const Color(
+                                                      0xFF205781),
                                                   fontWeight: FontWeight.w400,
-                                                  fontSize: 12,
+                                                  fontSize: kFontSmall,
                                                 ),
                                               ),
                                             ],
@@ -544,16 +576,19 @@ class _HomeScreenState extends State<HomeScreen> {
                                 onPressed: () {
                                   Navigator.push(
                                     context,
-                                    MaterialPageRoute(builder: (context) => AddCompanyPage()),
+                                    MaterialPageRoute(
+                                        builder: (context) => AddCompanyPage()),
                                   );
                                 },
-                                icon: const Icon(Icons.add, size: 20, color: Colors.white),
+                                icon: const Icon(Icons.add,
+                                    size: 20, color: Colors.white),
                                 label: const Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 6.0),
+                                  padding:
+                                  EdgeInsets.symmetric(vertical: 6.0),
                                   child: Text(
                                     "Add New Company",
                                     style: TextStyle(
-                                        fontSize: 15,
+                                        fontSize: kFontLarge,
                                         fontWeight: FontWeight.w500,
                                         color: Colors.white),
                                   ),
@@ -565,7 +600,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                   elevation: 1,
                                   minimumSize: const Size.fromHeight(40),
-                                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10),
                                 ),
                               ),
                             ],
@@ -585,14 +621,14 @@ class _HomeScreenState extends State<HomeScreen> {
           onTap: () {
             if (selectedCompanyId == null) {
               ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("Please select a company first!"))
-              );
+                  const SnackBar(content: Text("Please select a company first!")));
               return;
             }
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => AddCustomerPage(companyId: selectedCompanyId!),
+                builder: (context) =>
+                    AddCustomerPage(companyId: selectedCompanyId!),
               ),
             ).then((value) {
               if (value == true) fetchAccounts(selectedCompanyId!);
@@ -612,7 +648,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   "Add Customer",
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: 18,
+                    fontSize: kFontLarge,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0.5,
                   ),
@@ -634,14 +670,15 @@ class InfoCard extends StatelessWidget {
   const InfoCard({
     required this.title,
     required this.amount,
-    this.amountFontSize = 16,
+    this.amountFontSize = kFontLarge,
   });
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(title, style: const TextStyle(color: Colors.grey, fontSize: 14)),
+        Text(title,
+            style: TextStyle(color: Colors.grey, fontSize: kFontMedium)),
         const SizedBox(height: 4),
         Text(
           amount,
@@ -667,12 +704,13 @@ class CustomerTile extends StatelessWidget {
     return Column(
       children: [
         ListTile(
-          title: Text(name),
+          title: Text(name, style: TextStyle(fontSize: kFontLarge)),
           trailing: Text(
             amount,
             style: TextStyle(
               color: name.isNotEmpty ? Colors.green : Colors.grey,
               fontWeight: FontWeight.bold,
+              fontSize: kFontLarge,
             ),
           ),
         ),

@@ -139,8 +139,6 @@ class _StaffListPageState extends State<StaffListPage> {
                   infoRow("UserID", staff['loginId']),
                   infoRow("Password", staff['password']),
                   infoRow("User Type", staff['userType']),
-                  infoRow("isFirstTime", staff['isFirstTime']?.toString()),
-                  infoRow("isCreate", staff['isCreate']?.toString()),
                   if (companyAccess.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 12.0),
@@ -194,7 +192,7 @@ class _StaffListPageState extends State<StaffListPage> {
                           icon: const Icon(Icons.edit, color: Colors.white),
                           label: const Text("Edit", style: TextStyle(color: Colors.white)),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.orange,
+                            backgroundColor: Colors.green,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
                             ),
@@ -230,8 +228,6 @@ class _StaffListPageState extends State<StaffListPage> {
     final loginIdController = TextEditingController(text: staff['loginId'] ?? '');
     final passwordController = TextEditingController(text: staff['password'] ?? '');
     final userTypeController = TextEditingController(text: staff['userType'] ?? '');
-    bool isFirstTime = staff['isFirstTime'] ?? false;
-    bool isCreate = staff['isCreate'] ?? false;
     final List<dynamic> companyAccess = List.from(staff['companyAccess'] ?? []);
 
     await showDialog(
@@ -264,24 +260,13 @@ class _StaffListPageState extends State<StaffListPage> {
                     decoration: const InputDecoration(labelText: "User Type"),
                   ),
                   const SizedBox(height: 12),
-                  SwitchListTile(
-                    title: const Text("Is First Time"),
-                    value: isFirstTime,
-                    onChanged: (val) => setState(() => isFirstTime = val),
-                  ),
-                  SwitchListTile(
-                    title: const Text("Is Create"),
-                    value: isCreate,
-                    onChanged: (val) => setState(() => isCreate = val),
-                  ),
-                  const SizedBox(height: 12),
                   const Text("Company Access", style: TextStyle(fontWeight: FontWeight.bold)),
                   ...companyAccess.asMap().entries.map((entry) {
                     int idx = entry.key;
                     Map<String, dynamic> ca = Map<String, dynamic>.from(entry.value);
                     String companyId = ca['companyId'] ?? '';
                     String companyName = companyMap[companyId] ?? companyId;
-                    String action = ca['action'] ?? '';
+                    String action = ca['action'] ?? 'VIEW';
                     return Card(
                       margin: const EdgeInsets.symmetric(vertical: 4),
                       child: Padding(
@@ -292,8 +277,8 @@ class _StaffListPageState extends State<StaffListPage> {
                                 child: Text(companyName, style: const TextStyle(fontSize: 15))),
                             const SizedBox(width: 8),
                             DropdownButton<String>(
-                              value: action,
-                              items: ['VIEW', 'EDIT', 'NONE']
+                              value: (action == 'EDIT' ? 'VIEW-EDIT' : action), // Support old data "EDIT" as "VIEW-EDIT"
+                              items: ['VIEW', 'VIEW-EDIT']
                                   .map((e) => DropdownMenuItem(
                                 value: e,
                                 child: Text(e),
@@ -301,7 +286,7 @@ class _StaffListPageState extends State<StaffListPage> {
                                   .toList(),
                               onChanged: (val) {
                                 setState(() {
-                                  companyAccess[idx]['action'] = val;
+                                  companyAccess[idx]['action'] = (val == 'VIEW-EDIT') ? 'VIEW-EDIT' : 'VIEW';
                                 });
                               },
                             )

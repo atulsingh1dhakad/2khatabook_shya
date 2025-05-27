@@ -22,8 +22,6 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
   final userIdController = TextEditingController();
   final passwordController = TextEditingController();
   final searchController = TextEditingController();
-  bool isFirstTime = false;
-  bool isCreate = false;
   Map<String, bool> selectedCompanies = {};
   Map<String, String> companyActions = {};
   List<Map<String, dynamic>> companyList = [];
@@ -42,6 +40,9 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
   void dispose() {
     searchController.removeListener(onSearchChanged);
     searchController.dispose();
+    nameController.dispose();
+    userIdController.dispose();
+    passwordController.dispose();
     super.dispose();
   }
 
@@ -52,9 +53,8 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
         filteredCompanyList = List<Map<String, dynamic>>.from(companyList);
       } else {
         filteredCompanyList = companyList.where((company) {
-          final id = (company['companyId'] ?? company['_id'] ?? '').toString().toLowerCase();
           final name = (company['companyName'] ?? '').toString().toLowerCase();
-          return id.contains(query) || name.contains(query);
+          return name.contains(query);
         }).toList();
       }
     });
@@ -92,7 +92,7 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
           for (var company in companyList) {
             final id = company['companyId'] ?? company['_id'];
             selectedCompanies[id] = false;
-            companyActions[id] = "NONE";
+            companyActions[id] = "view";
           }
         }
       }
@@ -106,7 +106,7 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
     if (!_formKey.currentState!.validate()) return;
     List<Map<String, String>> companyAccess = [];
     selectedCompanies.forEach((id, isSelected) {
-      if (isSelected && (companyActions[id] != null && companyActions[id] != "NONE")) {
+      if (isSelected && (companyActions[id] != null)) {
         companyAccess.add({
           "companyId": id,
           "action": companyActions[id]!,
@@ -124,8 +124,6 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
       "name": nameController.text.trim(),
       "loginId": userIdController.text.trim(),
       "password": passwordController.text.trim(),
-      "isFirstTime": isFirstTime,
-      "isCreate": isCreate,
       "companyAccess": companyAccess,
     };
 
@@ -167,6 +165,49 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
     }
   }
 
+  Widget _companyActionDropdown(String id) {
+    return SizedBox(
+      width: 92, // slightly smaller width
+      child: DropdownButtonFormField<String>(
+        value: companyActions[id],
+        isExpanded: true,
+        icon: const Icon(Icons.arrow_drop_down, size: 18),
+        decoration: const InputDecoration(
+          border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(8))),
+          isDense: true,
+          contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        ),
+        items: [
+          DropdownMenuItem(
+            value: 'view',
+            child: Row(
+              children: const [
+                Icon(Icons.visibility, size: 13),
+                SizedBox(width: 4),
+                Text('View', style: TextStyle(fontSize: 12)),
+              ],
+            ),
+          ),
+          DropdownMenuItem(
+            value: 'view-edit',
+            child: Row(
+              children: const [
+                Icon(Icons.edit, size: 13),
+                SizedBox(width: 4),
+                Text('Edit', style: TextStyle(fontSize: 12)),
+              ],
+            ),
+          ),
+        ],
+        onChanged: (val) {
+          setState(() {
+            companyActions[id] = val ?? "view";
+          });
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -188,42 +229,55 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
               children: [
                 TextFormField(
                   controller: nameController,
-                  decoration: const InputDecoration(labelText: "Name"),
+                  decoration: const InputDecoration(
+                    labelText: "Name",
+                    prefixIcon: Icon(Icons.person_outline),
+                  ),
                   validator: (v) =>
                   (v == null || v.trim().isEmpty) ? "Name required" : null,
                 ),
                 TextFormField(
                   controller: userIdController,
-                  decoration: const InputDecoration(labelText: "UserID"),
+                  decoration: const InputDecoration(
+                    labelText: "UserID",
+                    prefixIcon: Icon(Icons.badge_outlined),
+                  ),
                   validator: (v) =>
                   (v == null || v.trim().isEmpty) ? "UserID required" : null,
                 ),
                 TextFormField(
                   controller: passwordController,
-                  decoration: const InputDecoration(labelText: "Password"),
+                  decoration: const InputDecoration(
+                    labelText: "Password",
+                    prefixIcon: Icon(Icons.lock_outline),
+                  ),
                   validator: (v) =>
                   (v == null || v.trim().isEmpty) ? "Password required" : null,
+                  obscureText: true,
                 ),
                 const SizedBox(height: 8),
                 // Search Bar
                 TextField(
                   controller: searchController,
                   decoration: InputDecoration(
-                    labelText: "Search company by name or id",
+                    labelText: "Search company by name",
                     prefixIcon: const Icon(Icons.search),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8)),
                   ),
                 ),
                 const SizedBox(height: 12),
                 const Text(
                   "Select Companies & Actions",
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 16),
                 ),
                 // Company List
                 ...filteredCompanyList.map((company) {
                   final id = company['companyId'] ?? company['_id'];
                   final name = company['companyName'] ?? '';
                   return Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Checkbox(
                         value: selectedCompanies[id] ?? false,
@@ -233,22 +287,14 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                           });
                         },
                       ),
-                      Expanded(child: Text("$name ($id)", style: const TextStyle(fontSize: 15))),
+                      Expanded(
+                        child: Text(
+                          name,
+                          style: const TextStyle(fontSize: 15),
+                        ),
+                      ),
                       const SizedBox(width: 8),
-                      DropdownButton<String>(
-                        value: companyActions[id],
-                        items: ['VIEW', 'VIEW-EDIT', 'NONE']
-                            .map((e) => DropdownMenuItem(
-                          value: e,
-                          child: Text(e),
-                        ))
-                            .toList(),
-                        onChanged: (val) {
-                          setState(() {
-                            companyActions[id] = val ?? "NONE";
-                          });
-                        },
-                      )
+                      _companyActionDropdown(id),
                     ],
                   );
                 }).toList(),
@@ -270,7 +316,8 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                       child: CircularProgressIndicator(
                           strokeWidth: 2, color: Colors.white),
                     )
-                        : const Text("Save", style: TextStyle(color: Colors.white)),
+                        : const Text("Save",
+                        style: TextStyle(color: Colors.white)),
                   ),
                 ),
               ],

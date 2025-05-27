@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shya_khatabook/presentation/homescreen.dart';
 import 'package:shya_khatabook/presentation/loginscreen.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:shya_khatabook/security/calciscreen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -48,10 +51,44 @@ class _EntryGateState extends State<EntryGate> {
     // Check for valid token
     String? token = prefs.getString('auth_token');
     if (token != null && token.isNotEmpty) {
-      _pushReplace(const HomeScreen());
+      // Check for security number (active)
+      bool isSecurityActive = await _checkSecurityActive(token);
+      if (isSecurityActive) {
+        _pushReplace(const SimpleCalculatorScreen());
+      } else {
+        _pushReplace(const HomeScreen());
+      }
     } else {
       _pushReplace(const EmailLoginScreen());
     }
+  }
+
+  Future<bool> _checkSecurityActive(String token) async {
+    try {
+      final url = Uri.parse("http://account.galaxyex.xyz/v1/user/api/setting/get-security");
+      final res = await http.get(
+        url,
+        headers: {
+          "Authkey": token,
+          "Content-Type": "application/json",
+        },
+      );
+
+      debugPrint("Security API status: ${res.statusCode}");
+      debugPrint("Security API body: ${res.body}");
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        debugPrint("Security API data: $data");
+        if (data["meta"]?["status"] == true && data["data"] != null) {
+          debugPrint("Security isActive: ${data["data"]["isActive"]}");
+          return data["data"]["isActive"] == true;
+        }
+      }
+    } catch (e) {
+      debugPrint("Security check error: $e");
+    }
+    return false;
   }
 
   void _pushReplace(Widget screen) {
