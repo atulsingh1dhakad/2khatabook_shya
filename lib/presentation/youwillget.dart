@@ -55,9 +55,11 @@ class _YouWillGetPageState extends State<YouWillGetPage> {
     final prefs = await SharedPreferences.getInstance();
     final authKey = prefs.getString("auth_token");
 
-    final url = Uri.parse('http://account.galaxyex.xyz/v1/user/api//account/add-ledger');
+    final url = Uri.parse('http://account.galaxyex.xyz/v1/user/api/account/add-ledger');
+    final amount = double.tryParse(_amountController.text.replaceAll(',', '')) ?? 0;
+
     final body = {
-      "amount": _amountController.text,
+      "amount": amount,
       "remark": _remarkController.text,
       "entryType": "get",
       "companyId": widget.companyId,
@@ -74,10 +76,19 @@ class _YouWillGetPageState extends State<YouWillGetPage> {
         },
         body: json.encode(body),
       );
+      print("Status: ${response.statusCode}");
+      print("Body: ${response.body}");
+
       if (response.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Saved successfully!")));
-        Navigator.pop(context, true);
+        final Map<String, dynamic> jsonResp = json.decode(response.body);
+        if (jsonResp['meta'] != null && jsonResp['meta']['status'] == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("Saved successfully!")));
+          Navigator.pop(context, true);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(jsonResp['meta']?['msg'] ?? "Failed to save (API error)")));
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text("Failed to save (${response.statusCode})")));
@@ -95,66 +106,81 @@ class _YouWillGetPageState extends State<YouWillGetPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
-        leading: BackButton(),
-        title: Text('You Will Get From ${widget.accountName}', style: TextStyle(fontSize: 15)),
-        backgroundColor: Color(0xFF5D8D4B),
+        leading: const BackButton(color: Colors.white,),
+        title: Text('You Will Get From ${widget.accountName}', style: const TextStyle(fontSize: 15,color: Colors.white)),
+        backgroundColor: const Color(0xFF5D8D4B),
       ),
-      body: Padding(
-        padding: EdgeInsets.all(10),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(10),
         child: Form(
           key: _formKey,
           child: Column(
             children: [
               TextFormField(
                 controller: _amountController,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
                   border: OutlineInputBorder(),
                   contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                 ),
                 validator: (value) =>
-                value == null || value.trim().isEmpty ? 'Enter amount' : null,
+                value == null || value.trim().isEmpty || double.tryParse(value.replaceAll(',', '')) == null
+                    ? 'Enter a valid amount'
+                    : null,
               ),
-              SizedBox(height: 10),
+              const SizedBox(height: 10),
               TextFormField(
                 controller: _remarkController,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   hintText: 'Remark',
                   border: OutlineInputBorder(),
                   contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                 ),
               ),
-              SizedBox(height: 10),
+              const SizedBox(height: 10),
               InkWell(
                 onTap: _pickDate,
                 child: InputDecorator(
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     border: OutlineInputBorder(),
                     contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                   ),
                   child: Row(
                     children: [
                       Expanded(child: Text(formattedDate)),
-                      Icon(Icons.calendar_today, size: 18),
+                      const Icon(Icons.calendar_today, size: 18),
                     ],
                   ),
                 ),
               ),
+              const SizedBox(height: 20),
             ],
           ),
         ),
       ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: ElevatedButton(
-          onPressed: _isLoading ? null : _saveData,
-          child: _isLoading ? CircularProgressIndicator(color: Colors.white) : Text('Save'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Color(0xFF5D8D4B),
-            minimumSize: Size(double.infinity, 48),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(7),
+      bottomNavigationBar: AnimatedPadding(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+        padding: EdgeInsets.only(
+          left: 8,
+          right: 8,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+        ),
+        child: SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: ElevatedButton(
+            onPressed: _isLoading ? null : _saveData,
+            child: _isLoading
+                ? const CircularProgressIndicator(color: Colors.white)
+                : const Text('Save', style: TextStyle(color: Colors.white)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF5D8D4B),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(7),
+              ),
             ),
           ),
         ),

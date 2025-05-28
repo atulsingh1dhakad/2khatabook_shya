@@ -1,48 +1,50 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_simple_calculator/flutter_simple_calculator.dart';
-import 'package:shya_khatabook/presentation/homescreen.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:math_expressions/math_expressions.dart';
 
-class SimpleCalculatorScreen extends StatefulWidget {
-  const SimpleCalculatorScreen({Key? key}) : super(key: key);
+import '../presentation/homescreen.dart';
+
+
+// Custom calculator button colors
+const Color kBgColor = Colors.black;
+const Color kButtonCircle = Color(0xFF18120C);
+const Color kButtonCircleAlt = Color(0xFF39322D);
+const Color kButtonGold = Color(0xFFEFB609);
+const Color kGoldText = Color(0xFFFFFFFF);
+const Color kRedText = Color(0xFFD26868);
+const Color kWhite = Colors.white;
+
+class CustomCalculatorScreen extends StatefulWidget {
+  const CustomCalculatorScreen({Key? key}) : super(key: key);
 
   @override
-  State<SimpleCalculatorScreen> createState() => _SimpleCalculatorScreenState();
+  State<CustomCalculatorScreen> createState() => _CustomCalculatorScreenState();
 }
 
-class _SimpleCalculatorScreenState extends State<SimpleCalculatorScreen> {
-  double _result = 0.0;
-  int? _securityCode;
-  bool _loading = true;
-  String? _error;
-  bool _unlocked = false; // To prevent multiple navigations
+class _CustomCalculatorScreenState extends State<CustomCalculatorScreen> {
+  String _expression = '';
+  String _result = '';
+  bool _shouldClear = false;
+
+  int? _securityPin;
 
   @override
   void initState() {
     super.initState();
-    _fetchSecurityCode();
+    _fetchSecurityPin();
   }
 
-  Future<void> _fetchSecurityCode() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    String? token = prefs.getString('auth_token');
-
-    if (token == null || token.isEmpty) {
-      setState(() {
-        _loading = false;
-        _error = "No auth token found.";
-      });
-      return;
-    }
-
+  Future<void> _fetchSecurityPin() async {
     try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String? token = prefs.getString('auth_token');
+
+      if (token == null || token.isEmpty) {
+        return;
+      }
+
       final url = Uri.parse("http://account.galaxyex.xyz/v1/user/api/setting/get-security");
       final res = await http.get(
         url,
@@ -55,78 +57,170 @@ class _SimpleCalculatorScreenState extends State<SimpleCalculatorScreen> {
         final data = jsonDecode(res.body);
         if (data["meta"]?["status"] == true && data["data"] != null) {
           setState(() {
-            _securityCode = data["data"]["code"];
-            _loading = false;
-          });
-        } else {
-          setState(() {
-            _loading = false;
-            _error = "No security code found.";
+            _securityPin = data["data"]["code"];
           });
         }
-      } else {
-        setState(() {
-          _loading = false;
-          _error = "Failed to get security code. (${res.statusCode})";
-        });
       }
     } catch (e) {
-      setState(() {
-        _loading = false;
-        _error = "Error: $e";
-      });
+      // Optionally handle error
     }
   }
 
-  void _checkAndNavigate(double value) {
-    if (_securityCode == null || _unlocked) return;
-    // Use a tolerance for floating point comparison
-    if ((value - _securityCode!).abs() < 0.0001) {
-      _unlocked = true; // Prevent multiple navigations
+  void _onButtonPressed(String value) {
+    setState(() {
+      if (value == 'C') {
+        _expression = '';
+        _result = '';
+        _shouldClear = false;
+      } else if (value == '=') {
+        try {
+          _result = _calculateResult(_expression);
+          _shouldClear = true;
+          _checkAndNavigate(_result);
+        } catch (e) {
+          _result = 'Err';
+        }
+      } else {
+        if (_shouldClear) {
+          _expression = '';
+          _shouldClear = false;
+        }
+        _expression += value;
+      }
+    });
+  }
+
+  void _checkAndNavigate(String result) {
+    if (_securityPin == null) return;
+    double? resultNum = double.tryParse(result);
+    if (resultNum != null && resultNum.toInt() == _securityPin) {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const HomeScreen()),
       );
     }
+    // For debugging, uncomment:
+    // print('Result: $result, Parsed: $resultNum, Pin: $_securityPin');
+  }
+
+  String _calculateResult(String exp) {
+    try {
+      exp = exp.replaceAll('×', '*').replaceAll('÷', '/');
+      Parser p = Parser();
+      Expression expression = p.parse(exp);
+      ContextModel cm = ContextModel();
+      double eval = expression.evaluate(EvaluationType.REAL, cm);
+      return eval.toString();
+    } catch (e) {
+      return 'Err';
+    }
+  }
+
+  Widget _buildButton({
+    required String label,
+    Color? bgColor,
+    Color? fgColor,
+    double fontSize = 24,
+    FontWeight fontWeight = FontWeight.bold,
+  }) {
+    return SizedBox(
+      width: 66,
+      height: 66,
+      child: RawMaterialButton(
+        onPressed: () => _onButtonPressed(label),
+        elevation: 0,
+        fillColor: bgColor ?? kButtonCircle,
+        shape: const CircleBorder(),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: fgColor ?? kGoldText,
+            fontSize: fontSize,
+            fontWeight: fontWeight,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCalculator() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        // Display
+        Container(
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.only(right: 20, top: 40, bottom: 8),
+          height: 120,
+          child: Text(
+            _result.isNotEmpty ? _result : _expression,
+            style: const TextStyle(
+              color: kGoldText,
+              fontSize: 36,
+              fontWeight: FontWeight.w400,
+              letterSpacing: 2.0,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        // Row: utility icons (optional, non-functional here)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 22.0, vertical: 7),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Icon(Icons.timer, color: kGoldText.withOpacity(0.5), size: 22),
+              Icon(Icons.battery_3_bar, color: kGoldText.withOpacity(0.5), size: 22),
+              Icon(Icons.grid_3x3, color: kGoldText.withOpacity(0.5), size: 22),
+              Icon(Icons.close, color: kGoldText.withOpacity(0.5), size: 22),
+            ],
+          ),
+        ),
+        const SizedBox(height: 9),
+        // Buttons
+        _buildButtonRow(['C', '()', '%', '÷'],
+            circleColors: [kButtonCircleAlt, kButtonCircleAlt, kButtonCircleAlt, kButtonCircleAlt],
+            textColors: [kRedText, kGoldText, kGoldText, kGoldText]),
+        _buildButtonRow(['7', '8', '9', '×']),
+        _buildButtonRow(['4', '5', '6', '-']),
+        _buildButtonRow(['1', '2', '3', '+']),
+        _buildButtonRow(['+/-', '0', '.', '='],
+            circleColors: [kButtonCircleAlt, kButtonCircle, kButtonCircle, kButtonGold],
+            textColors: [kGoldText, kGoldText, kGoldText, kWhite]),
+        const SizedBox(height: 22),
+      ],
+    );
+  }
+
+  Widget _buildButtonRow(List<String> labels,
+      {List<Color>? circleColors, List<Color>? textColors}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5.2, horizontal: 8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: List.generate(labels.length, (i) {
+          return _buildButton(
+            label: labels[i],
+            bgColor: circleColors != null && i < circleColors.length
+                ? circleColors[i]
+                : kButtonCircle,
+            fgColor: textColors != null && i < textColors.length
+                ? textColors[i]
+                : kGoldText,
+            fontSize: labels[i] == '=' ? 30 : 24,
+            fontWeight: labels[i] == '=' ? FontWeight.bold : FontWeight.bold,
+          );
+        }),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-    if (_error != null) {
-      return Scaffold(
-        body: Center(child: Text(_error!, style: const TextStyle(color: Colors.red))),
-      );
-    }
     return Scaffold(
-      body: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: SimpleCalculator(
-          value: _result,
-          hideExpression: false,
-          onChanged: (key, value, expression) {
-            setState(() {
-              _result = value ?? 0.0;
-            });
-            if (value != null) {
-              _checkAndNavigate(value);
-            }
-          },
-          theme: const CalculatorThemeData(
-            displayColor: Colors.white,
-            displayStyle: TextStyle(fontSize: 32, color: Color(0xFF225B84)),
-            expressionColor: Colors.white,
-            expressionStyle: TextStyle(fontSize: 18, color: Colors.black),
-            operatorColor: Color(0xFF225B84),
-            operatorStyle: TextStyle(fontSize: 24, color: Colors.white),
-            commandColor: Color(0xFFB1C4D7),
-            numColor: Color(0xFFEFF3E5),
-            numStyle: TextStyle(fontSize: 24, color: Colors.black),
-          ),
-        ),
+      backgroundColor: kBgColor,
+      body: SafeArea(
+        child: _buildCalculator(),
       ),
     );
   }

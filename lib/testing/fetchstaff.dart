@@ -187,7 +187,16 @@ class _StaffListPageState extends State<StaffListPage> {
                         child: ElevatedButton.icon(
                           onPressed: () {
                             Navigator.pop(context);
-                            showEditStaffDialog(staff);
+                            // Navigate to AddStaffScreen with staff data for editing
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => AddStaffScreen(
+                                  staffData: staff,
+                                  onStaffAdded: fetchStaffList,
+                                ),
+                              ),
+                            );
                           },
                           icon: const Icon(Icons.edit, color: Colors.white),
                           label: const Text("Edit", style: TextStyle(color: Colors.white)),
@@ -213,107 +222,6 @@ class _StaffListPageState extends State<StaffListPage> {
                         ),
                       ),
                     ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  void showEditStaffDialog(Map<String, dynamic> staff) async {
-    final nameController = TextEditingController(text: staff['name'] ?? '');
-    final loginIdController = TextEditingController(text: staff['loginId'] ?? '');
-    final passwordController = TextEditingController(text: staff['password'] ?? '');
-    final userTypeController = TextEditingController(text: staff['userType'] ?? '');
-    final List<dynamic> companyAccess = List.from(staff['companyAccess'] ?? []);
-
-    await showDialog(
-      context: context,
-      builder: (context) {
-        return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text("Edit Staff", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: nameController,
-                    decoration: const InputDecoration(labelText: "Name"),
-                  ),
-                  TextField(
-                    controller: loginIdController,
-                    decoration: const InputDecoration(labelText: "UserID"),
-                  ),
-                  TextField(
-                    controller: passwordController,
-                    decoration: const InputDecoration(labelText: "Password"),
-                  ),
-                  TextField(
-                    controller: userTypeController,
-                    decoration: const InputDecoration(labelText: "User Type"),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text("Company Access", style: TextStyle(fontWeight: FontWeight.bold)),
-                  ...companyAccess.asMap().entries.map((entry) {
-                    int idx = entry.key;
-                    Map<String, dynamic> ca = Map<String, dynamic>.from(entry.value);
-                    String companyId = ca['companyId'] ?? '';
-                    String companyName = companyMap[companyId] ?? companyId;
-                    String action = ca['action'] ?? 'VIEW';
-                    return Card(
-                      margin: const EdgeInsets.symmetric(vertical: 4),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                        child: Row(
-                          children: [
-                            Expanded(
-                                child: Text(companyName, style: const TextStyle(fontSize: 15))),
-                            const SizedBox(width: 8),
-                            DropdownButton<String>(
-                              value: (action == 'EDIT' ? 'VIEW-EDIT' : action), // Support old data "EDIT" as "VIEW-EDIT"
-                              items: ['VIEW', 'VIEW-EDIT']
-                                  .map((e) => DropdownMenuItem(
-                                value: e,
-                                child: Text(e),
-                              ))
-                                  .toList(),
-                              onChanged: (val) {
-                                setState(() {
-                                  companyAccess[idx]['action'] = (val == 'VIEW-EDIT') ? 'VIEW-EDIT' : 'VIEW';
-                                });
-                              },
-                            )
-                          ],
-                        ),
-                      ),
-                    );
-                  }),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        // Call your API to update the staff record here.
-                        // Example: await updateStaff({...});
-                        Navigator.pop(context);
-                        // After updating, refresh list
-                        await fetchStaffList();
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      child: const Text("Save", style: TextStyle(color: Colors.white)),
-                    ),
                   ),
                 ],
               ),
@@ -483,7 +391,6 @@ class _StaffListPageState extends State<StaffListPage> {
                     style: TextStyle(fontSize: 18, color: Colors.white),
                   ),
                   onPressed: () {
-                    // In your Add Staff button onPressed:
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -492,7 +399,6 @@ class _StaffListPageState extends State<StaffListPage> {
                         ),
                       ),
                     );
-                    // Add your add staff logic here
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF265E85),

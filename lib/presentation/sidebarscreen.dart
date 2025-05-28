@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:shya_khatabook/presentation/allcompanytrail.dart';
-import 'package:shya_khatabook/presentation/changepass.dart';
-import 'package:shya_khatabook/presentation/recyclebinscreen.dart';
-import 'package:shya_khatabook/security/secureform.dart';
-import 'package:shya_khatabook/testing/fetchstaff.dart';
+import '../security/secureform.dart';
+import '../testing/fetchstaff.dart';
+import 'allcompanytrail.dart';
+import 'changepass.dart';
+import 'recyclebinscreen.dart';
 import 'loginscreen.dart';
 
 // Dummy LoginScreen for demonstration. Replace with your actual login screen import.
@@ -32,143 +32,141 @@ class _settingscreenState extends State<settingscreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF6F8FA),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Container(
-              decoration: const BoxDecoration(
-                color: Color(0xFF205781),
-                borderRadius: BorderRadius.only(
-                  topRight: Radius.circular(18),
-                ),
+      body: Column(
+        children: [
+          Container(
+            decoration: const BoxDecoration(
+              color: Color(0xFF205781),
+              borderRadius: BorderRadius.only(
+                topRight: Radius.circular(18),
               ),
-              width: double.infinity,
-              padding: const EdgeInsets.only(top: 36, bottom: 16),
+            ),
+            width: double.infinity,
+            padding: const EdgeInsets.only(top: 36, bottom: 16),
+            child: Column(
+              children: const [
+                CircleAvatar(
+                  radius: 34,
+                  backgroundColor: Colors.white,
+                  child: Icon(Icons.person, color: Color(0xFF205781), size: 38),
+                ),
+                SizedBox(height: 10),
+                Text(
+                  "GGM 1",
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold),
+                )
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          Expanded(
+            child: SingleChildScrollView(
               child: Column(
-                children: const [
-                  CircleAvatar(
-                    radius: 34,
-                    backgroundColor: Colors.white,
-                    child: Icon(Icons.person, color: Color(0xFF205781), size: 38),
+                children: [
+                  SidebarButton(
+                    icon: Icons.arrow_back,
+                    label: "Back",
+                    onTap: null, // default pop by InkWell
+                    isBack: true,
                   ),
-                  SizedBox(height: 10),
-                  Text(
-                    "GGM 1",
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold),
-                  )
+                  SidebarButton(
+                    icon: Icons.all_inbox,
+                    label: "All Company Trial",
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => AllCompanyTrialScreen()),
+                      );
+                    },
+                  ),
+                  SidebarButton(
+                    icon: Icons.group,
+                    label: "Staff List",
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => StaffListPage()),
+                      );
+                    },
+                  ),
+                  SidebarButton(
+                    icon: Icons.delete_outline,
+                    label: "Recycle Bin",
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => RecycleBinScreen()),
+                      );
+                    },
+                  ),
+                  SidebarButton(
+                    icon: Icons.language,
+                    label: "Change Language",
+                    onTap: () {},
+                  ),
+                  SidebarButton(
+                    icon: Icons.attach_money,
+                    label: "Currency Settings",
+                    onTap: () {},
+                  ),
+                  SidebarButton(
+                    icon: Icons.backup_outlined,
+                    label: "Backup Settings",
+                    onTap: () {},
+                  ),
+                  SidebarButton(
+                    icon: Icons.security,
+                    label: "Security",
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => SecurityPinScreen(),));
+                    },
+                  ),
+                  SidebarButton(
+                    icon: Icons.password,
+                    label: "Change Password",
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => ChangePass()),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 18),
                 ],
               ),
             ),
-            const SizedBox(height: 18),
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    SidebarButton(
-                      icon: Icons.arrow_back,
-                      label: "Back",
-                      onTap: null, // default pop by InkWell
-                      isBack: true,
-                    ),
-                    SidebarButton(
-                      icon: Icons.all_inbox,
-                      label: "All Company Trial",
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => AllCompanyTrialScreen()),
-                        );
-                      },
-                    ),
-                    SidebarButton(
-                      icon: Icons.group,
-                      label: "Staff List",
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => StaffListPage()),
-                        );
-                      },
-                    ),
-                    SidebarButton(
-                      icon: Icons.delete_outline,
-                      label: "Recycle Bin",
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => RecycleBinScreen()),
-                        );
-                      },
-                    ),
-                    SidebarButton(
-                      icon: Icons.language,
-                      label: "Change Language",
-                      onTap: () {},
-                    ),
-                    SidebarButton(
-                      icon: Icons.attach_money,
-                      label: "Currency Settings",
-                      onTap: () {},
-                    ),
-                    SidebarButton(
-                      icon: Icons.backup_outlined,
-                      label: "Backup Settings",
-                      onTap: () {},
-                    ),
-                    SidebarButton(
-                      icon: Icons.security,
-                      label: "Security",
-                      onTap: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (context) => SecurityPinScreen(),));
-                      },
-                    ),
-                    SidebarButton(
-                      icon: Icons.password,
-                      label: "Change Password",
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => ChangePass()),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 18),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: GestureDetector(
+              onTap: () => _logout(context),
+              child: Container(
+                height: 54,
+                decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    border: Border.all(color: Colors.red.shade300, width: 1.4),
+                    borderRadius: BorderRadius.circular(9)),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: const [
+                    Icon(Icons.logout, color: Colors.red, size: 24),
+                    SizedBox(width: 14),
+                    Text("Logout",
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 18,
+                        )),
                   ],
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: GestureDetector(
-                onTap: () => _logout(context),
-                child: Container(
-                  height: 54,
-                  decoration: BoxDecoration(
-                      color: Colors.red.shade50,
-                      border: Border.all(color: Colors.red.shade300, width: 1.4),
-                      borderRadius: BorderRadius.circular(9)),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
-                      Icon(Icons.logout, color: Colors.red, size: 24),
-                      SizedBox(width: 14),
-                      Text("Logout",
-                          style: TextStyle(
-                            color: Colors.red,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 18,
-                          )),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 30),
-          ],
-        ),
+          ),
+
+        ],
       ),
     );
   }

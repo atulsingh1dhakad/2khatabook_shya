@@ -22,11 +22,14 @@ class SecurityPinScreen extends StatefulWidget {
 
 class _SecurityPinScreenState extends State<SecurityPinScreen> {
   final TextEditingController pinController = TextEditingController();
+  final TextEditingController changePinController = TextEditingController();
 
   bool isLoading = false;
+  bool isChanging = false;
   bool _securityEnabled = false;
   bool _pinSaved = false;
   String? _errorMsg;
+  String? _changeErrorMsg;
   int? _savedPin; // stores the fetched existing pin if any
 
   @override
@@ -92,6 +95,7 @@ class _SecurityPinScreenState extends State<SecurityPinScreen> {
       // If turning off, clear pin and UI
       if (!value) {
         pinController.clear();
+        changePinController.clear();
         _pinSaved = false;
         _savedPin = null;
       }
@@ -126,6 +130,7 @@ class _SecurityPinScreenState extends State<SecurityPinScreen> {
           _savedPin = null;
           _pinSaved = false;
           pinController.clear();
+          changePinController.clear();
         });
         _showSnackBar("Security number removed.");
       } else {
@@ -143,16 +148,28 @@ class _SecurityPinScreenState extends State<SecurityPinScreen> {
     }
   }
 
-  Future<void> _savePin() async {
+  Future<void> _savePin({bool isChange = false}) async {
     setState(() {
-      _errorMsg = null;
+      if (isChange) {
+        _changeErrorMsg = null;
+        isChanging = true;
+      } else {
+        _errorMsg = null;
+        isLoading = true;
+      }
     });
 
-    final pin = pinController.text.trim();
+    final pin = isChange ? changePinController.text.trim() : pinController.text.trim();
 
     if (pin.isEmpty || int.tryParse(pin) == null) {
       setState(() {
-        _errorMsg = "Security number must be a number";
+        if (isChange) {
+          _changeErrorMsg = "Security number must be a number";
+          isChanging = false;
+        } else {
+          _errorMsg = "Security number must be a number";
+          isLoading = false;
+        }
       });
       _showSnackBar("Security number must be a number");
       return;
@@ -161,7 +178,13 @@ class _SecurityPinScreenState extends State<SecurityPinScreen> {
     // Limit to 19 digits (safe for 64-bit int backend)
     if (pin.length > 19) {
       setState(() {
-        _errorMsg = "Security number is too long";
+        if (isChange) {
+          _changeErrorMsg = "Security number is too long";
+          isChanging = false;
+        } else {
+          _errorMsg = "Security number is too long";
+          isLoading = false;
+        }
       });
       _showSnackBar("Security number is too long");
       return;
@@ -172,23 +195,29 @@ class _SecurityPinScreenState extends State<SecurityPinScreen> {
       parsedPin = int.parse(pin);
     } catch (e) {
       setState(() {
-        _errorMsg = "Security number is invalid or too large";
+        if (isChange) {
+          _changeErrorMsg = "Security number is invalid or too large";
+          isChanging = false;
+        } else {
+          _errorMsg = "Security number is invalid or too large";
+          isLoading = false;
+        }
       });
       _showSnackBar("Security number is invalid or too large");
       return;
     }
 
-    setState(() {
-      isLoading = true;
-      _errorMsg = null;
-    });
-
     String? authToken = await getAuthToken();
 
     if (authToken == null || authToken.isEmpty) {
       setState(() {
-        isLoading = false;
-        _errorMsg = "Authentication error. Please log in again.";
+        if (isChange) {
+          _changeErrorMsg = "Authentication error. Please log in again.";
+          isChanging = false;
+        } else {
+          _errorMsg = "Authentication error. Please log in again.";
+          isLoading = false;
+        }
       });
       _showSnackBar("Authentication error. Please log in again.");
       return;
@@ -228,26 +257,40 @@ class _SecurityPinScreenState extends State<SecurityPinScreen> {
       if (res.statusCode == 200 && data?["meta"]?["status"] == true) {
         setState(() {
           isLoading = false;
+          isChanging = false;
           _pinSaved = true;
           _errorMsg = null;
+          _changeErrorMsg = null;
           _savedPin = parsedPin;
+          pinController.text = parsedPin.toString();
+          changePinController.clear();
         });
-        _showSnackBar("Security number saved successfully.");
+        _showSnackBar(isChange ? "Security number changed successfully." : "Security number saved successfully.");
       } else {
         String errorDetail = "Failed to save security number";
         if (serverMsg.isNotEmpty) errorDetail = serverMsg;
         errorDetail += " (HTTP ${res.statusCode})";
         setState(() {
-          isLoading = false;
-          _errorMsg = errorDetail;
+          if (isChange) {
+            _changeErrorMsg = errorDetail;
+            isChanging = false;
+          } else {
+            _errorMsg = errorDetail;
+            isLoading = false;
+          }
         });
         _showSnackBar(errorDetail);
       }
     } catch (e) {
       print("Exception during API call: $e");
       setState(() {
-        isLoading = false;
-        _errorMsg = "Error: ${e.toString()}";
+        if (isChange) {
+          _changeErrorMsg = "Error: ${e.toString()}";
+          isChanging = false;
+        } else {
+          _errorMsg = "Error: ${e.toString()}";
+          isLoading = false;
+        }
       });
       _showSnackBar("Error: ${e.toString()}");
     }
@@ -331,23 +374,44 @@ class _SecurityPinScreenState extends State<SecurityPinScreen> {
     );
   }
 
-  Widget _changePinButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 48,
-      child: OutlinedButton(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: kPrimaryBlue,
-          backgroundColor: Colors.white,
-          side: const BorderSide(color: kPrimaryBlue, width: 1.8),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(kButtonRadius),
-          ),
-          textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+  Widget _changePinSection() {
+    return Column(
+      children: [
+        _pinField(
+          controller: changePinController,
+          label: "Change Security Number",
+          placeholder: "Enter new security number",
+          enabled: true,
         ),
-        onPressed: null, // No functionality yet
-        child: const Text("Change your security number"),
-      ),
+        if (_changeErrorMsg != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6.0),
+            child: Text(
+              _changeErrorMsg!,
+              style: const TextStyle(color: Colors.red, fontSize: 15),
+            ),
+          ),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: isChanging
+              ? const Center(child: CircularProgressIndicator(color: kPrimaryBlue))
+              : OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white,
+              backgroundColor: kPrimaryBlue,
+              side: const BorderSide(color: kPrimaryBlue, width: 1.8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(kButtonRadius),
+              ),
+              textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+            ),
+            onPressed: () => _savePin(isChange: true),
+            child: const Text("Change Security Number"),
+          ),
+        ),
+      ],
     );
   }
 
@@ -367,7 +431,7 @@ class _SecurityPinScreenState extends State<SecurityPinScreen> {
           ),
           textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
         ),
-        onPressed: _savePin,
+        onPressed: () => _savePin(),
         child: const Text("Save Security Number"),
       ),
     );
@@ -439,8 +503,7 @@ class _SecurityPinScreenState extends State<SecurityPinScreen> {
                                 fontWeight: FontWeight.bold),
                           ),
                         ),
-                      const SizedBox(height: 8),
-                      _changePinButton(),
+                      _changePinSection(),
                     ],
                   ),
                 const SizedBox(height: 36),

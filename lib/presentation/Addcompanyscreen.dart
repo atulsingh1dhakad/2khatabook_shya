@@ -23,7 +23,7 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
     final authKey = prefs.getString("auth_token");
 
     final url = Uri.parse(
-        'http://account.galaxyex.xyz/v1/user/api//account/add-company');
+        'http://account.galaxyex.xyz/v1/user/api/account/add-company'); // single slash
     final body = {
       'companyName': _nameController.text,
     };
@@ -68,6 +68,7 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         leading: BackButton(
           color: Colors.white,
@@ -78,7 +79,7 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
         ),
         backgroundColor: Color(0xFF23608A),
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: EdgeInsets.all(10),
         child: Form(
           key: _formKey,
@@ -100,20 +101,29 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
           ),
         ),
       ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: ElevatedButton.icon(
-          onPressed: _isLoading ? null : _createCompany,
-          icon: Icon(Icons.add, color: Colors.white),
-          label: Text(
-            'Add Company',
-            style: TextStyle(color: Colors.white),
-          ),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Color(0xFF23608A),
-            minimumSize: Size(double.infinity, 48),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(7),
+      bottomNavigationBar: AnimatedPadding(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+        padding: EdgeInsets.only(
+          left: 8,
+          right: 8,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+        ),
+        child: SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: ElevatedButton.icon(
+            onPressed: _isLoading ? null : _createCompany,
+            icon: Icon(Icons.add, color: Colors.white),
+            label: Text(
+              'Add Company',
+              style: TextStyle(color: Colors.white),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Color(0xFF23608A),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(7),
+              ),
             ),
           ),
         ),

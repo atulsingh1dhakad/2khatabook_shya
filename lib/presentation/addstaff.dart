@@ -5,11 +5,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class AddStaffScreen extends StatefulWidget {
   /// Call this after successful staff addition to refresh your main list.
-  final VoidCallback onStaffAdded;
+  final VoidCallback? onStaffAdded;
+  /// If editing, pass the staff data to prefill fields.
+  final Map<String, dynamic>? staffData;
 
   const AddStaffScreen({
     Key? key,
-    required this.onStaffAdded,
+    this.onStaffAdded,
+    this.staffData,
   }) : super(key: key);
 
   @override
@@ -22,17 +25,25 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
   final userIdController = TextEditingController();
   final passwordController = TextEditingController();
   final searchController = TextEditingController();
+
   Map<String, bool> selectedCompanies = {};
   Map<String, String> companyActions = {};
   List<Map<String, dynamic>> companyList = [];
   List<Map<String, dynamic>> filteredCompanyList = [];
   bool loading = false;
   bool fetchingCompanies = true;
+  bool isEditMode = false;
+  String? staffId; // For update API
 
   @override
   void initState() {
     super.initState();
-    fetchCompanies();
+    isEditMode = widget.staffData != null;
+    fetchCompanies().then((_) {
+      if (isEditMode) {
+        prefillFromStaffData(widget.staffData!);
+      }
+    });
     searchController.addListener(onSearchChanged);
   }
 
@@ -44,6 +55,27 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
     userIdController.dispose();
     passwordController.dispose();
     super.dispose();
+  }
+
+  void prefillFromStaffData(Map<String, dynamic> staff) {
+    nameController.text = staff['name'] ?? '';
+    userIdController.text = staff['loginId'] ?? '';
+    passwordController.text = staff['password'] ?? '';
+    staffId = staff['userId'] ?? staff['_id']; // adapt as per backend
+
+    // Prefill company access
+    final List accessList = staff['companyAccess'] ?? [];
+    for (var company in companyList) {
+      final id = company['companyId'] ?? company['_id'];
+      selectedCompanies[id] = false;
+      companyActions[id] = "view";
+    }
+    for (var ca in accessList) {
+      final id = ca['companyId'];
+      selectedCompanies[id] = true;
+      companyActions[id] = (ca['action'] ?? "view").toLowerCase();
+    }
+    setState(() {});
   }
 
   void onSearchChanged() {
@@ -91,8 +123,8 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
           filteredCompanyList = List<Map<String, dynamic>>.from(companyList);
           for (var company in companyList) {
             final id = company['companyId'] ?? company['_id'];
-            selectedCompanies[id] = false;
-            companyActions[id] = "view";
+            selectedCompanies.putIfAbsent(id, () => false);
+            companyActions.putIfAbsent(id, () => "view");
           }
         }
       }
@@ -102,7 +134,7 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
     });
   }
 
-  Future<void> addStaff() async {
+  Future<void> addOrUpdateStaff() async {
     if (!_formKey.currentState!.validate()) return;
     List<Map<String, String>> companyAccess = [];
     selectedCompanies.forEach((id, isSelected) {
@@ -120,11 +152,13 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
       return;
     }
     setState(() => loading = true);
+
     final payload = {
       "name": nameController.text.trim(),
       "loginId": userIdController.text.trim(),
       "password": passwordController.text.trim(),
       "companyAccess": companyAccess,
+      if (isEditMode && staffId != null) "userId": staffId,
     };
 
     final authKey = await getAuthToken();
@@ -135,27 +169,37 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
       setState(() => loading = false);
       return;
     }
-    final url = "http://account.galaxyex.xyz/v1/user/api/user/add-user";
-    final response = await http.post(
-      Uri.parse(url),
+
+    final String url = isEditMode
+        ? "http://account.galaxyex.xyz/v1/user/api/user/update-user"
+        : "http://account.galaxyex.xyz/v1/user/api/user/add-user";
+    final response = await (isEditMode
+        ? http.put(Uri.parse(url),
       headers: {
         "Authkey": authKey,
         "Content-Type": "application/json",
       },
       body: jsonEncode(payload),
-    );
+    )
+        : http.post(Uri.parse(url),
+      headers: {
+        "Authkey": authKey,
+        "Content-Type": "application/json",
+      },
+      body: jsonEncode(payload),
+    ));
     setState(() => loading = false);
     if (response.statusCode == 200) {
       final jsonData = json.decode(response.body);
       if (jsonData['meta'] != null && jsonData['meta']['status'] == true) {
-        widget.onStaffAdded();
+        if (widget.onStaffAdded != null) widget.onStaffAdded!();
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Staff added successfully!")),
+          SnackBar(content: Text(isEditMode ? "Staff updated successfully!" : "Staff added successfully!")),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(jsonData['meta']?['msg'] ?? "Failed to add staff.")),
+          SnackBar(content: Text(jsonData['meta']?['msg'] ?? "Failed to ${isEditMode ? 'update' : 'add'} staff.")),
         );
       }
     } else {
@@ -167,7 +211,7 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
 
   Widget _companyActionDropdown(String id) {
     return SizedBox(
-      width: 92, // slightly smaller width
+      width: 92,
       child: DropdownButtonFormField<String>(
         value: companyActions[id],
         isExpanded: true,
@@ -212,7 +256,8 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Add Staff", style: TextStyle(color: Colors.white)),
+        title: Text(isEditMode ? "Edit Staff" : "Add Staff",
+            style: const TextStyle(color: Colors.white)),
         backgroundColor: const Color(0xFF265E85),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
@@ -302,7 +347,7 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: loading ? null : addStaff,
+                    onPressed: loading ? null : addOrUpdateStaff,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
                       shape: RoundedRectangleBorder(
@@ -316,8 +361,8 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                       child: CircularProgressIndicator(
                           strokeWidth: 2, color: Colors.white),
                     )
-                        : const Text("Save",
-                        style: TextStyle(color: Colors.white)),
+                        : Text(isEditMode ? "Save Changes" : "Save",
+                        style: const TextStyle(color: Colors.white)),
                   ),
                 ),
               ],

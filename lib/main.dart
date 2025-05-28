@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:shya_khatabook/presentation/homescreen.dart';
-import 'package:shya_khatabook/presentation/loginscreen.dart';
+import '/presentation/homescreen.dart';
+import 'presentation/loginscreen.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:shya_khatabook/security/calciscreen.dart';
+import 'security/calciscreen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -51,10 +51,24 @@ class _EntryGateState extends State<EntryGate> {
     // Check for valid token
     String? token = prefs.getString('auth_token');
     if (token != null && token.isNotEmpty) {
+      // --------- TOKEN EXPIRY CHECK ADDED HERE ----------
+      int? expiryTimestamp = prefs.getInt('token_expiry'); // Store expiry as epoch seconds
+      if (expiryTimestamp != null) {
+        final now = DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
+        if (now >= expiryTimestamp) {
+          // Token expired, clear token and redirect to login
+          await prefs.remove('auth_token');
+          await prefs.remove('token_expiry');
+          _pushReplace(const EmailLoginScreen());
+          return;
+        }
+      }
+      // ---------------------------------------------------
+
       // Check for security number (active)
       bool isSecurityActive = await _checkSecurityActive(token);
       if (isSecurityActive) {
-        _pushReplace(const SimpleCalculatorScreen());
+        _pushReplace(const CustomCalculatorScreen());
       } else {
         _pushReplace(const HomeScreen());
       }

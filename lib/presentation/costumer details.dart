@@ -1,9 +1,9 @@
 import 'dart:convert';
+import 'package:Calculator/presentation/youwillgive.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:shya_khatabook/presentation/youwillget.dart';
-import 'package:shya_khatabook/presentation/youwillgive.dart';
+import 'youwillget.dart';
 
 // Consistent font sizes
 const double kFontSmall = 14;
@@ -35,6 +35,7 @@ class _CustomerDetailsState extends State<CustomerDetails> {
   double totalBalance = 0;
   String accountName = '';
   String accountRemark = '';
+  bool dataChanged = false;
 
   @override
   void initState() {
@@ -162,6 +163,7 @@ class _CustomerDetailsState extends State<CustomerDetails> {
         if (jsonData['meta']?['status'] == true) {
           _showSnackBar("Entry deleted successfully");
           await fetchLedger();
+          dataChanged = true;
         } else {
           _showSnackBar(jsonData['meta']?['msg'] ?? "Failed to delete entry");
         }
@@ -182,9 +184,22 @@ class _CustomerDetailsState extends State<CustomerDetails> {
     );
   }
 
-  String formatDate(int milliseconds) {
+  String formatDateTime(int milliseconds) {
     final dt = DateTime.fromMillisecondsSinceEpoch(milliseconds);
-    return "${dt.day.toString().padLeft(2, '0')}-${dt.month.toString().padLeft(2, '0')}-${dt.year}";
+    int hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    String ampm = dt.hour >= 12 ? 'PM' : 'AM';
+    return "${dt.day.toString().padLeft(2, '0')} "
+        "${_monthName(dt.month)} "
+        "${dt.year} "
+        "$hour:${dt.minute.toString().padLeft(2, '0')}$ampm";
+  }
+
+  String _monthName(int month) {
+    const months = [
+      "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    ];
+    return months[(month - 1).clamp(0, 11)];
   }
 
   Widget buildLedgerItem(Map<String, dynamic> entry) {
@@ -193,278 +208,353 @@ class _CustomerDetailsState extends State<CustomerDetails> {
     final dateMillis = entry['ledgerDate'] ?? 0;
     final remark = entry['remark'] ?? "";
     final ledgerId = entry['ledgerId']?.toString() ?? "";
+    final isCredit = credit > 0;
+    final isDebit = debit > 0;
 
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.symmetric(vertical: 7),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2))],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade200),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Ledger info
-          Expanded(
-            flex: 3,
+          // Date & left details
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  formatDate(dateMillis),
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: kFontLarge),
+                  formatDateTime(dateMillis),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w400, fontSize: kFontSmall),
                 ),
+                if (isCredit)
+                  Container(
+                    decoration: BoxDecoration(
+                        borderRadius: BorderRadius.all(Radius.circular(20)),
+                        color: Color(0xfffad0c44d).withOpacity(0.1)
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        "₹${credit.toStringAsFixed(2)}",
+                        style: const TextStyle(
+                          color: Colors.black,
+                          fontWeight: FontWeight.w400,
+                          fontSize: kFontSmall,
+                        ),
+                      ),
+                    ),
+                  ),
+                if (isDebit)
+                  Container(
+                    decoration: BoxDecoration(
+                        borderRadius: BorderRadius.all(Radius.circular(20)),
+                        color: Color(0xfffad0c44d).withOpacity(0.1)
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(2),
+                      child: Text(
+                        "₹${debit.toStringAsFixed(2)}",
+                        style: const TextStyle(
+                          color: Colors.black,
+                          fontWeight: FontWeight.w400,
+                          fontSize: kFontSmall,
+                        ),
+                      ),
+                    ),
+                  ),
                 if (remark.isNotEmpty)
                   Padding(
-                    padding: const EdgeInsets.only(top: 4),
+                    padding: const EdgeInsets.only(top: 2),
                     child: Text(
                       remark,
-                      style: const TextStyle(fontSize: kFontSmall, color: Colors.grey),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
               ],
             ),
           ),
-          // Credit
-          Expanded(
-            flex: 2,
-            child: Text(
-              "Credit: ₹${credit.toStringAsFixed(2)}",
-              style: TextStyle(
-                  fontSize: kFontSmall,
-                  color: credit > 0 ? Colors.green[700] : Colors.grey,
-                  fontWeight: FontWeight.w600),
-              textAlign: TextAlign.right,
-            ),
-          ),
-          const SizedBox(width: 12),
+          SizedBox(width: 10,),
           // Debit
-          Expanded(
-            flex: 2,
+          Container(
+            color: Color(0xffd63384).withOpacity(0.05),
+            width: 75,
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 3),
             child: Text(
-              "Debit: ₹${debit.toStringAsFixed(2)}",
+              "₹${debit.toStringAsFixed(2)}",
               style: TextStyle(
-                  fontSize: kFontSmall,
-                  color: debit > 0 ? Colors.red[700] : Colors.grey,
-                  fontWeight: FontWeight.w600),
-              textAlign: TextAlign.right,
+                  fontWeight: FontWeight.w400,
+                  fontSize: kFontLarge),
             ),
           ),
-          // Delete icon
-          IconButton(
-            icon: isDeleting
-                ? const SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(
-                color: Colors.red,
-                strokeWidth: 2,
-              ),
-            )
-                : const Icon(Icons.delete, color: Colors.red),
-            onPressed: isDeleting
-                ? null
-                : () async {
-              final confirm = await showDialog<bool>(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text("Delete Entry"),
-                  content: const Text("Are you sure you want to delete this entry?"),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(false),
-                      child: const Text("Cancel"),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(true),
-                      child: const Text("Delete", style: TextStyle(color: Colors.red)),
-                    ),
-                  ],
-                ),
-              );
-              if (confirm == true && ledgerId.isNotEmpty) {
-                await deleteLedgerEntry(ledgerId);
-              }
-            },
-            tooltip: "Delete",
+          // Credit
+          Container(
+            width: 100,
+            alignment: Alignment.centerRight,
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 3),
+            child: Text(
+              "₹${credit.toStringAsFixed(2)}",
+              style: TextStyle(
+                  fontWeight: FontWeight.w400,
+                  fontSize: kFontLarge),
+            ),
           ),
         ],
       ),
     );
   }
 
+  Future<void> _handleEntryChange(Future<dynamic> future) async {
+    final value = await future;
+    if (value == true) {
+      await fetchAllData();
+      dataChanged = true;
+    }
+  }
+
+  @override
+  void dispose() {
+    Navigator.pop(context, dataChanged);
+    super.dispose();
+  }
+
+  Future<bool> _onWillPop() async {
+    Navigator.pop(context, dataChanged);
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        leading: const BackButton(color: Colors.white,),
-        title: Text(
-          accountName.isNotEmpty ? accountName : "Loading...",
-          style: const TextStyle(color: Colors.white, fontSize: kFontLarge),
-        ),
-        backgroundColor: const Color(0xFF265E85),
-      ),
-      backgroundColor: const Color(0xFFF4F3EE),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : errorMessage != null
-          ? Center(child: Text(errorMessage!, style: const TextStyle(fontSize: kFontLarge)))
-          : Column(
-        children: [
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (accountRemark.isNotEmpty)
+    // Calculate summary card logic
+    final double displayCredit = totalCredit;
+    final double displayDebit = totalDebit;
+    final double balance = displayCredit - displayDebit;
+
+    String label;
+    Color amountTextColor;
+    double displayAmount;
+
+    if (balance < 0) {
+      label = "You Will Give";
+      amountTextColor = const Color(0xffc96868);
+      displayAmount = -balance;
+    } else if (balance > 0) {
+      label = "You Will Get";
+      amountTextColor = const Color(0xFF198754);
+      displayAmount = balance;
+    } else {
+      label = "Settled Up";
+      amountTextColor = Colors.grey;
+      displayAmount = 0.0;
+    }
+
+    return WillPopScope(
+      onWillPop: _onWillPop,
+      child: Scaffold(
+        appBar: PreferredSize(
+          preferredSize: const Size.fromHeight(120),
+          child: AppBar(
+            automaticallyImplyLeading: false,
+            backgroundColor: const Color(0xFF265E85),
+            elevation: 0,
+            flexibleSpace: SafeArea(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Top Row: Back, Title, Settings
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Text(
-                      "Remark: $accountRemark",
-                      style: TextStyle(fontSize: kFontSmall, color: Colors.grey[600]),
+                    padding: const EdgeInsets.only(left: 0, right: 0, top: 0, bottom: 0),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.arrow_back, color: Colors.white),
+                          onPressed: () => Navigator.pop(context, dataChanged),
+                        ),
+                        Expanded(
+                          child: Text(
+                            accountName.isNotEmpty ? accountName : "Loading...",
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: kFontLarge,
+                                fontWeight: FontWeight.w600),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.settings, color: Colors.white),
+                          onPressed: () {
+                            // settings action here
+                          },
+                        ),
+                      ],
                     ),
                   ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      children: [
-                        const Text("Total Credit", style: TextStyle(fontSize: kFontSmall)),
-                        const SizedBox(height: 4),
-                        Text(
-                          "₹${totalCredit.toStringAsFixed(2)}",
-                          style: const TextStyle(
-                              fontSize: kFontMedium,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green),
+                  // Summary Card (falls inside AppBar)
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(6),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.07),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
                         ),
                       ],
                     ),
-                    Column(
+                    child: Row(
                       children: [
-                        const Text("Total Debit", style: TextStyle(fontSize: kFontSmall)),
-                        const SizedBox(height: 4),
-                        Text(
-                          "₹${totalDebit.toStringAsFixed(2)}",
-                          style: const TextStyle(
-                              fontSize: kFontMedium,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.red),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
+                            child: Text(
+                              label,
+                              style: const TextStyle(
+                                color: Colors.black,
+                                fontWeight: FontWeight.w500,
+                                fontSize: kFontXLarge,
+                              ),
+                            ),
+                          ),
                         ),
-                      ],
-                    ),
-                    Column(
-                      children: [
-                        const Text("Balance", style: TextStyle(fontSize: kFontSmall)),
-                        const SizedBox(height: 4),
-                        Text(
-                          "₹${totalBalance.toStringAsFixed(2)}",
-                          style: TextStyle(
-                            fontSize: kFontMedium,
-                            fontWeight: FontWeight.bold,
-                            color: totalBalance >= 0
-                                ? Colors.green[800]
-                                : Colors.red[800],
+                        Padding(
+                          padding: const EdgeInsets.only(right: 16.0),
+                          child: Text(
+                            "₹${displayAmount.toStringAsFixed(2)}",
+                            style: TextStyle(
+                              color: amountTextColor,
+                              fontWeight: FontWeight.w500,
+                              fontSize: kFontLarge,
+                            ),
                           ),
                         ),
                       ],
                     ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: ledger.isEmpty
-                ? Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.inbox, size: 60, color: Colors.grey.withOpacity(0.7)),
-                  const SizedBox(height: 12),
-                  Text(
-                    "No entry available, add now",
-                    style: TextStyle(fontSize: kFontLarge, color: Colors.grey[700]),
                   ),
                 ],
               ),
-            )
-                : ListView.builder(
-              padding: const EdgeInsets.all(12),
-              itemCount: ledger.length,
-              itemBuilder: (context, index) {
-                return buildLedgerItem(ledger[index]);
-              },
             ),
           ),
-          // Bottom buttons container
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => YouWillGivePage(
-                            accountId: widget.accountId,
-                            accountName: accountName,
-                            companyId: widget.companyId,
-                          ),
-                        ),
-                      ).then((value) => fetchAllData());
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xffc96868),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+        ),
+        backgroundColor: const Color(0xFFF4F3EE),
+        body: isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : errorMessage != null
+            ? Center(child: Text(errorMessage!, style: const TextStyle(fontSize: kFontLarge)))
+            : Column(
+          children: [
+            // Ledger list
+            Expanded(
+              child: Container(
+                color: Colors.transparent,
+                child: ledger.isEmpty
+                    ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.inbox, size: 60, color: Colors.grey.withOpacity(0.7)),
+                      const SizedBox(height: 12),
+                      Text(
+                        "No entry available, add now",
+                        style: TextStyle(fontSize: kFontLarge, color: Colors.grey[700]),
                       ),
-                    ),
-                    child: const Text(
-                      "You Give",
-                      style: TextStyle(fontSize: kFontLarge, color: Colors.white),
-                    ),
+                    ],
                   ),
+                )
+                    : ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                  itemCount: ledger.length,
+                  itemBuilder: (context, index) {
+                    return buildLedgerItem(ledger[index]);
+                  },
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => YouWillGetPage(
-                            accountId: widget.accountId,
-                            accountName: accountName,
-                            companyId: widget.companyId,
-                          ),
-                        ),
-                      ).then((value) => fetchAllData());
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xff198754),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: const Text(
-                      "You Get",
-                      style: TextStyle(fontSize: kFontLarge, color: Colors.white),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
-        ],
+            // Bottom buttons container
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          _handleEntryChange(
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => YouWillGivePage(
+                                  accountId: widget.accountId,
+                                  accountName: accountName,
+                                  companyId: widget.companyId,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xffc96868),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(7),
+                          ),
+                        ),
+                        child: const Text(
+                          "You Give",
+                          style: TextStyle(fontSize: kFontLarge, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          _handleEntryChange(
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => YouWillGetPage(
+                                  accountId: widget.accountId,
+                                  accountName: accountName,
+                                  companyId: widget.companyId,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF198754),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(7),
+                          ),
+                        ),
+                        child: const Text(
+                          "You Get",
+                          style: TextStyle(fontSize: kFontLarge, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
