@@ -4,10 +4,11 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 // Font sizes and styles copied from CustomerDetails
+const double kFontVerySmall = 10;
 const double kFontSmall = 12;
-const double kFontMedium = 16;
-const double kFontLarge = 12;
-const double kFontXLarge = 12;
+const double kFontMedium = 10;
+const double kFontLarge = 10;
+const double kFontXLarge = 10;
 
 class RecycleBinScreen extends StatefulWidget {
   const RecycleBinScreen({Key? key}) : super(key: key);
@@ -137,7 +138,7 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
     return "${dt.day.toString().padLeft(2, '0')} "
         "${_monthName(dt.month)} "
         "${dt.year} "
-        "$hour:${dt.minute.toString().padLeft(2, '0')}$ampm";
+        "${hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')} $ampm";
   }
 
   String _monthName(int month) {
@@ -154,8 +155,6 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
     final dateMillis = entry['ledgerDate'] ?? 0;
     final remark = entry['remark'] ?? "";
     final ledgerId = entry['ledgerId']?.toString() ?? entry['_id']?.toString() ?? "";
-    final isCredit = credit > 0;
-    final isDebit = debit > 0;
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 7),
@@ -164,139 +163,135 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.grey.shade200),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // Date & left details
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  formatDateTime(dateMillis),
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w400, fontSize: kFontSmall),
-                ),
-                if (isCredit)
-                  Container(
-                    decoration: BoxDecoration(
-                        borderRadius: BorderRadius.all(Radius.circular(20)),
-                        color: Color(0xfffad0c44d).withOpacity(0.1)
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(
-                        "₹${credit.toStringAsFixed(2)}",
-                        style: const TextStyle(
-                          color: Colors.black,
-                          fontWeight: FontWeight.w400,
-                          fontSize: kFontSmall,
-                        ),
-                      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Left: Date + Remark (CustomerDetails style)
+            Expanded(
+              flex: 6,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    formatDateTime(dateMillis),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: kFontSmall,
+                      color: Colors.black,
                     ),
                   ),
-                if (isDebit)
-                  Container(
-                    decoration: BoxDecoration(
-                        borderRadius: BorderRadius.all(Radius.circular(20)),
-                        color: Color(0xfffad0c44d).withOpacity(0.1)
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(2),
+                  if (remark.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 1),
                       child: Text(
+                        remark,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            // Entries, You Gave, You Get (CustomerDetails style)
+            Expanded(
+              flex: 7,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  // You Gave (pinkish background always)
+                  Container(
+                    width: 70,
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: Color(0xffd63384).withOpacity(0.05),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 10),
+                      alignment: Alignment.centerRight,
+                      child: debit == 0
+                          ? const Text(
+                        "",
+                        style: TextStyle(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 14.5,
+                          color: Colors.red,
+                        ),
+                      )
+                          : Text(
                         "₹${debit.toStringAsFixed(2)}",
                         style: const TextStyle(
-                          color: Colors.black,
-                          fontWeight: FontWeight.w400,
-                          fontSize: kFontSmall,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 13,
+                          color: Colors.red,
                         ),
                       ),
                     ),
                   ),
-                if (remark.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      remark,
+                  // You Get
+                  Container(
+                    width: 80,
+                    alignment: Alignment.centerRight,
+                    child: credit == 0
+                        ? const SizedBox.shrink()
+                        : Text(
+                      "₹${credit.toStringAsFixed(2)}",
                       style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 13,
+                        color: Color(0xFF198754),
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          // Debit
-          Container(
-            color: const Color(0xffd63384).withOpacity(0.05),
-            width: 70,
-            alignment: Alignment.center,
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 3),
-            child: Text(
-              "₹${debit.toStringAsFixed(2)}",
-              style: const TextStyle(
-                  fontWeight: FontWeight.w400,
-                  fontSize: kFontLarge),
-            ),
-          ),
-          // Credit
-          Container(
-            width: 75,
-            alignment: Alignment.centerRight,
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 3),
-            child: Text(
-              "₹${credit.toStringAsFixed(2)}",
-              style: const TextStyle(
-                  fontWeight: FontWeight.w400,
-                  fontSize: kFontLarge),
-            ),
-          ),
-          // Flexible gap
-          const Spacer(),
-          // Restore icon
-          Padding(
-            padding: const EdgeInsets.only(right: 12, left: 8),
-            child: isRestoring && restoringLedgerId == ledgerId
-                ? const SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: Colors.green,
+                ],
               ),
-            )
-                : GestureDetector(
-              onTap: () async {
-                final confirm = await showDialog<bool>(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text("Restore Ledger"),
-                    content: const Text("Are you sure you want to restore this ledger?"),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(false),
-                        child: const Text("Cancel"),
-                      ),
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(true),
-                        child: const Text("Restore", style: TextStyle(color: Colors.green)),
-                      ),
-                    ],
-                  ),
-                );
-                if (confirm == true) {
-                  await restoreLedger(ledgerId);
-                }
-              },
-              child: const Icon(Icons.restore, color: Colors.green, size: 22),
             ),
-          ),
-        ],
+            // Restore icon
+            Padding(
+              padding: const EdgeInsets.only(right: 8, left: 6, top: 10),
+              child: isRestoring && restoringLedgerId == ledgerId
+                  ? const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.green,
+                ),
+              )
+                  : GestureDetector(
+                onTap: () async {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text("Restore Ledger"),
+                      content: const Text("Are you sure you want to restore this ledger?"),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(false),
+                          child: const Text("Cancel"),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(true),
+                          child: const Text("Restore", style: TextStyle(color: Colors.green)),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirm == true) {
+                    await restoreLedger(ledgerId);
+                  }
+                },
+                child: const Icon(Icons.restore, color: Color(0xFF2D486C), size: 22),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

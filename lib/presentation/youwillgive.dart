@@ -8,12 +8,22 @@ class YouWillGivePage extends StatefulWidget {
   final String accountName;
   final String companyId;
 
+  // Edit mode params
+  final String? ledgerId;
+  final double? editDebit;
+  final String? editRemark;
+  final DateTime? editDate;
+
   const YouWillGivePage({
-    super.key,
+    Key? key,
     required this.accountId,
     required this.accountName,
     required this.companyId,
-  });
+    this.ledgerId,
+    this.editDebit,
+    this.editRemark,
+    this.editDate,
+  }) : super(key: key);
 
   @override
   _YouWillGivePageState createState() => _YouWillGivePageState();
@@ -21,10 +31,29 @@ class YouWillGivePage extends StatefulWidget {
 
 class _YouWillGivePageState extends State<YouWillGivePage> {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _amountController = TextEditingController(text: "0");
-  final TextEditingController _remarkController = TextEditingController();
-  DateTime _selectedDate = DateTime.now();
+  late TextEditingController _amountController;
+  late TextEditingController _remarkController;
+  late DateTime _selectedDate;
   bool _isLoading = false;
+
+  bool get isEdit => widget.ledgerId != null;
+
+  @override
+  void initState() {
+    super.initState();
+    _amountController = TextEditingController(
+        text: widget.editDebit != null ? widget.editDebit!.toStringAsFixed(0) : "0");
+    _remarkController =
+        TextEditingController(text: widget.editRemark ?? "");
+    _selectedDate = widget.editDate ?? DateTime.now();
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _remarkController.dispose();
+    super.dispose();
+  }
 
   Future<void> _pickDate() async {
     DateTime? picked = await showDatePicker(
@@ -40,32 +69,31 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
     }
   }
 
-  String get formattedDate =>
-      "${_selectedDate.day.toString().padLeft(2, '0')}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.year}";
-
   String get isoDate =>
       "${_selectedDate.year.toString().padLeft(4, '0')}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}";
 
   Future<void> _saveData() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     final prefs = await SharedPreferences.getInstance();
     final authKey = prefs.getString("auth_token");
+    final amount = double.tryParse(_amountController.text.trim()) ?? 0;
 
-    final url = Uri.parse('http://account.galaxyex.xyz/v1/user/api/account/add-ledger');
-    final amount = double.tryParse(_amountController.text.replaceAll(',', '')) ?? 0;
-
-    final body = {
+    // Match Postman JSON exactly!
+    final Map<String, dynamic> body = {
+      if (isEdit) "ledgerId": widget.ledgerId,
       "amount": amount,
-      "remark": _remarkController.text,
+      "remark": _remarkController.text.trim(),
       "entryType": "give",
       "companyId": widget.companyId,
       "accountId": widget.accountId,
       "date": isoDate,
     };
+
+    print("Submitting body: $body");
+
+    final url = Uri.parse('http://account.galaxyex.xyz/v1/user/api/account/add-ledger');
 
     try {
       final response = await http.post(
@@ -83,7 +111,7 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
         final Map<String, dynamic> jsonResp = json.decode(response.body);
         if (jsonResp['meta'] != null && jsonResp['meta']['status'] == true) {
           ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Saved successfully!")));
+              SnackBar(content: Text(isEdit ? "Updated successfully!" : "Saved successfully!")));
           Navigator.pop(context, true);
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -94,12 +122,9 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
             SnackBar(content: Text("Failed to save (${response.statusCode})")));
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error: $e")));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
     }
   }
 
@@ -109,7 +134,9 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
         leading: const BackButton(color: Colors.white,),
-        title: Text('You Will Give To ${widget.accountName}', style: const TextStyle(fontSize: 15, color: Colors.white)),
+        title: Text(
+            isEdit ? 'Edit Entry (You Will Give)' : 'You Will Give To ${widget.accountName}',
+            style: const TextStyle(fontSize: 15, color: Colors.white)),
         backgroundColor: const Color(0xffc96868),
       ),
       body: SingleChildScrollView(
@@ -126,7 +153,9 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
                   contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                 ),
                 validator: (value) =>
-                value == null || value.trim().isEmpty || double.tryParse(value.replaceAll(',', '')) == null
+                value == null ||
+                    value.trim().isEmpty ||
+                    double.tryParse(value.trim()) == null
                     ? 'Enter a valid amount'
                     : null,
               ),
@@ -149,7 +178,10 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
                   ),
                   child: Row(
                     children: [
-                      Expanded(child: Text(formattedDate)),
+                      Expanded(child: Text(
+                          "${_selectedDate.day.toString().padLeft(2, '0')}-"
+                              "${_selectedDate.month.toString().padLeft(2, '0')}-"
+                              "${_selectedDate.year}")),
                       const Icon(Icons.calendar_today, size: 18),
                     ],
                   ),
@@ -175,7 +207,7 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
             onPressed: _isLoading ? null : _saveData,
             child: _isLoading
                 ? const CircularProgressIndicator(color: Colors.white)
-                : const Text('Save', style: TextStyle(color: Colors.white)),
+                : Text(isEdit ? 'Update' : 'Save', style: const TextStyle(color: Colors.white)),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xffc96868),
               shape: RoundedRectangleBorder(

@@ -33,7 +33,7 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
   bool loading = false;
   bool fetchingCompanies = true;
   bool isEditMode = false;
-  String? staffId; // For update API
+  String? staffIdToUpdate; // For update API
 
   @override
   void initState() {
@@ -61,7 +61,8 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
     nameController.text = staff['name'] ?? '';
     userIdController.text = staff['loginId'] ?? '';
     passwordController.text = staff['password'] ?? '';
-    staffId = staff['userId'] ?? staff['_id']; // adapt as per backend
+    // For update, send userId as "userIdToUpdate" and make editable fields accordingly
+    staffIdToUpdate = staff['userId']?.toString() ?? staff['_id']?.toString() ?? staff['id']?.toString();
 
     // Prefill company access
     final List accessList = staff['companyAccess'] ?? [];
@@ -73,7 +74,7 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
     for (var ca in accessList) {
       final id = ca['companyId'];
       selectedCompanies[id] = true;
-      companyActions[id] = (ca['action'] ?? "view").toLowerCase();
+      companyActions[id] = (ca['action'] ?? "view").toString().toLowerCase();
     }
     setState(() {});
   }
@@ -139,9 +140,10 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
     List<Map<String, String>> companyAccess = [];
     selectedCompanies.forEach((id, isSelected) {
       if (isSelected && (companyActions[id] != null)) {
+        // send action value in UPPERCASE (VIEW/VIEW-EDIT)
         companyAccess.add({
           "companyId": id,
-          "action": companyActions[id]!,
+          "action": companyActions[id]!.toUpperCase(),
         });
       }
     });
@@ -158,7 +160,7 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
       "loginId": userIdController.text.trim(),
       "password": passwordController.text.trim(),
       "companyAccess": companyAccess,
-      if (isEditMode && staffId != null) "userId": staffId,
+      if (isEditMode && staffIdToUpdate != null) "userIdToUpdate": staffIdToUpdate,
     };
 
     final authKey = await getAuthToken();
@@ -170,25 +172,18 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
       return;
     }
 
-    final String url = isEditMode
-        ? "http://account.galaxyex.xyz/v1/user/api/user/update-user"
-        : "http://account.galaxyex.xyz/v1/user/api/user/add-user";
-    final response = await (isEditMode
-        ? http.put(Uri.parse(url),
+    final String url = "http://account.galaxyex.xyz/v1/user/api/user/add-user";
+    // Always use POST, even for editing (backend logic handles update if userIdToUpdate is present)
+    final response = await http.post(
+      Uri.parse(url),
       headers: {
         "Authkey": authKey,
         "Content-Type": "application/json",
       },
       body: jsonEncode(payload),
-    )
-        : http.post(Uri.parse(url),
-      headers: {
-        "Authkey": authKey,
-        "Content-Type": "application/json",
-      },
-      body: jsonEncode(payload),
-    ));
+    );
     setState(() => loading = false);
+
     if (response.statusCode == 200) {
       final jsonData = json.decode(response.body);
       if (jsonData['meta'] != null && jsonData['meta']['status'] == true) {
@@ -289,6 +284,7 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                   ),
                   validator: (v) =>
                   (v == null || v.trim().isEmpty) ? "UserID required" : null,
+                  enabled: !isEditMode, // <--- Not editable while editing
                 ),
                 TextFormField(
                   controller: passwordController,

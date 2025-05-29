@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../security/secureform.dart';
 import '../testing/fetchstaff.dart';
 import 'allcompanytrail.dart';
@@ -7,22 +8,44 @@ import 'changepass.dart';
 import 'recyclebinscreen.dart';
 import 'loginscreen.dart';
 
-// Dummy LoginScreen for demonstration. Replace with your actual login screen import.
-
-class settingscreen extends StatefulWidget {
-  const settingscreen({super.key});
+class SettingsScreen extends StatefulWidget {
+  const SettingsScreen({super.key});
 
   @override
-  State<settingscreen> createState() => _settingscreenState();
+  State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _settingscreenState extends State<settingscreen> {
+class _SettingsScreenState extends State<SettingsScreen> {
+  String _version = '';
+  String _buildNumber = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchVersion();
+  }
+
+  Future<void> _fetchVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      setState(() {
+        _version = info.version;
+        _buildNumber = info.buildNumber;
+      });
+    } catch (e) {
+      setState(() {
+        _version = 'Unknown';
+        _buildNumber = '';
+      });
+    }
+  }
+
   Future<void> _logout(BuildContext context) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.remove("auth_token");
     if (mounted) {
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (context) => EmailLoginScreen(),),
+        MaterialPageRoute(builder: (context) => const EmailLoginScreen()),
             (route) => false,
       );
     }
@@ -54,10 +77,11 @@ class _settingscreenState extends State<settingscreen> {
                 Text(
                   "GGM 1",
                   style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold),
-                )
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ],
             ),
           ),
@@ -78,7 +102,7 @@ class _settingscreenState extends State<settingscreen> {
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => AllCompanyTrialScreen()),
+                        MaterialPageRoute(builder: (context) => const AllCompanyTrialScreen()),
                       );
                     },
                   ),
@@ -88,7 +112,7 @@ class _settingscreenState extends State<settingscreen> {
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => StaffListPage()),
+                        MaterialPageRoute(builder: (context) => const StaffListPage()),
                       );
                     },
                   ),
@@ -98,7 +122,7 @@ class _settingscreenState extends State<settingscreen> {
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => RecycleBinScreen()),
+                        MaterialPageRoute(builder: (context) => const RecycleBinScreen()),
                       );
                     },
                   ),
@@ -121,7 +145,10 @@ class _settingscreenState extends State<settingscreen> {
                     icon: Icons.security,
                     label: "Security",
                     onTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => SecurityPinScreen(),));
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const SecurityPinScreen()),
+                      );
                     },
                   ),
                   SidebarButton(
@@ -130,11 +157,27 @@ class _settingscreenState extends State<settingscreen> {
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => ChangePass()),
+                        MaterialPageRoute(builder: (context) => const ChangePass()),
                       );
                     },
                   ),
                   const SizedBox(height: 18),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
+                    child: Align(
+                      alignment: Alignment.center,
+                      child: Text(
+                        (_version.isNotEmpty)
+                            ? 'App Version: $_version ($_buildNumber)'
+                            : 'App Version: ...',
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -146,26 +189,28 @@ class _settingscreenState extends State<settingscreen> {
               child: Container(
                 height: 54,
                 decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    border: Border.all(color: Colors.red.shade300, width: 1.4),
-                    borderRadius: BorderRadius.circular(9)),
+                  color: Colors.red.shade50,
+                  border: Border.all(color: Colors.red.shade300, width: 1.4),
+                  borderRadius: BorderRadius.circular(9),
+                ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: const [
                     Icon(Icons.logout, color: Colors.red, size: 24),
                     SizedBox(width: 14),
-                    Text("Logout",
-                        style: TextStyle(
-                          color: Colors.red,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 18,
-                        )),
+                    Text(
+                      "Logout",
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 18,
+                      ),
+                    ),
                   ],
                 ),
               ),
             ),
           ),
-
         ],
       ),
     );
@@ -178,6 +223,7 @@ class SidebarButton extends StatelessWidget {
   final VoidCallback? onTap;
   final bool isLogout;
   final bool isBack;
+
   const SidebarButton({
     Key? key,
     required this.icon,
@@ -220,7 +266,6 @@ class SidebarButton extends StatelessWidget {
                   ),
                 ),
               ),
-              // Only show the forward arrow if NOT the back button
               if (!isBack)
                 const Icon(Icons.arrow_forward_ios, size: 18, color: Colors.grey),
               const SizedBox(width: 8),

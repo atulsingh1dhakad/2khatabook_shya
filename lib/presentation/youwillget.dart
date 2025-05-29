@@ -8,11 +8,20 @@ class YouWillGetPage extends StatefulWidget {
   final String accountName;
   final String companyId;
 
+  final String? ledgerId;
+  final double? editCredit;
+  final String? editRemark;
+  final DateTime? editDate;
+
   const YouWillGetPage({
     super.key,
     required this.accountId,
     required this.accountName,
     required this.companyId,
+    this.ledgerId,
+    this.editCredit,
+    this.editRemark,
+    this.editDate,
   });
 
   @override
@@ -21,10 +30,29 @@ class YouWillGetPage extends StatefulWidget {
 
 class _YouWillGetPageState extends State<YouWillGetPage> {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _amountController = TextEditingController(text: "0");
-  final TextEditingController _remarkController = TextEditingController();
-  DateTime _selectedDate = DateTime.now();
+  late TextEditingController _amountController;
+  late TextEditingController _remarkController;
+  late DateTime _selectedDate;
   bool _isLoading = false;
+
+  bool get isEdit => widget.ledgerId != null;
+
+  @override
+  void initState() {
+    super.initState();
+    _amountController = TextEditingController(
+        text: widget.editCredit != null ? widget.editCredit!.toString() : "0");
+    _remarkController =
+        TextEditingController(text: widget.editRemark ?? "");
+    _selectedDate = widget.editDate ?? DateTime.now();
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _remarkController.dispose();
+    super.dispose();
+  }
 
   Future<void> _pickDate() async {
     DateTime? picked = await showDatePicker(
@@ -42,7 +70,6 @@ class _YouWillGetPageState extends State<YouWillGetPage> {
 
   String get formattedDate =>
       "${_selectedDate.day.toString().padLeft(2, '0')}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.year}";
-
   String get isoDate =>
       "${_selectedDate.year.toString().padLeft(4, '0')}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}";
 
@@ -54,8 +81,6 @@ class _YouWillGetPageState extends State<YouWillGetPage> {
 
     final prefs = await SharedPreferences.getInstance();
     final authKey = prefs.getString("auth_token");
-
-    final url = Uri.parse('http://account.galaxyex.xyz/v1/user/api/account/add-ledger');
     final amount = double.tryParse(_amountController.text.replaceAll(',', '')) ?? 0;
 
     final body = {
@@ -65,7 +90,12 @@ class _YouWillGetPageState extends State<YouWillGetPage> {
       "companyId": widget.companyId,
       "accountId": widget.accountId,
       "date": isoDate,
+      if (isEdit) "ledgerId": widget.ledgerId,
     };
+
+    print("Submitting body: $body");
+
+    final url = Uri.parse('http://account.galaxyex.xyz/v1/user/api/account/add-ledger');
 
     try {
       final response = await http.post(
@@ -83,7 +113,7 @@ class _YouWillGetPageState extends State<YouWillGetPage> {
         final Map<String, dynamic> jsonResp = json.decode(response.body);
         if (jsonResp['meta'] != null && jsonResp['meta']['status'] == true) {
           ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Saved successfully!")));
+              SnackBar(content: Text(isEdit ? "Updated successfully!" : "Saved successfully!")));
           Navigator.pop(context, true);
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -109,7 +139,9 @@ class _YouWillGetPageState extends State<YouWillGetPage> {
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
         leading: const BackButton(color: Colors.white,),
-        title: Text('You Will Get From ${widget.accountName}', style: const TextStyle(fontSize: 15,color: Colors.white)),
+        title: Text(
+            isEdit ? 'Edit Entry (You Will Get)' : 'You Will Get From ${widget.accountName}',
+            style: const TextStyle(fontSize: 15, color: Colors.white)),
         backgroundColor: const Color(0xFF5D8D4B),
       ),
       body: SingleChildScrollView(
@@ -175,7 +207,7 @@ class _YouWillGetPageState extends State<YouWillGetPage> {
             onPressed: _isLoading ? null : _saveData,
             child: _isLoading
                 ? const CircularProgressIndicator(color: Colors.white)
-                : const Text('Save', style: TextStyle(color: Colors.white)),
+                : Text(isEdit ? 'Update' : 'Save', style: const TextStyle(color: Colors.white)),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF5D8D4B),
               shape: RoundedRectangleBorder(

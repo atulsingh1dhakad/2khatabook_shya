@@ -6,8 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 // --- Color Theme --- //
 const Color kPrimaryBlue = Color(0xFF205781);
 const Color kGiveRed = Color(0xFFD32F2F); // Red for "You Will Give"
-const Color kGetGreen = Color(0xFF388E3C); // Green for "You Will Get"
-const Color kBalanceGreen = Color(0xFF1B5E20); // Dark green for "Balance"
+const Color kGetGreen = Color(0xFF205781); // Green for "You Will Get"
+const Color kBalanceGreen = Color(0xFF205781); // Dark green for "Balance"
 
 class AllCompanyTrialScreen extends StatefulWidget {
   const AllCompanyTrialScreen({super.key});

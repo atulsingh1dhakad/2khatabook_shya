@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:Calculator/presentation/Reportscreen.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -464,7 +465,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                        builder: (context) => const settingscreen()),
+                        builder: (context) => const SettingsScreen()),
                   );
                 })
           ],
@@ -557,15 +558,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       ),
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 5.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            Icon(Icons.file_copy,
-                                size: 20, color: Colors.grey),
-                            SizedBox(width: 8),
-                            Text("Get Report",
-                                style: TextStyle(fontSize: 12)),
-                          ],
+                        child: GestureDetector(
+                          onTap: (){
+                            Navigator.push(context, MaterialPageRoute(builder: (context) => ReportScreen(),));
+                          },
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: const [
+                              Icon(Icons.file_copy,
+                                  size: 20, color: Colors.grey),
+                              SizedBox(width: 8),
+                              Text("Get Report",
+                                  style: TextStyle(fontSize: 12)),
+                            ],
+                          ),
                         ),
                       ),
                     ],
