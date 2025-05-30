@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../ledgerdetails.dart';
 import 'youwillgive.dart';
 import 'youwillget.dart';
+import 'Addcustomerscreen.dart'; // <-- Import for navigation
 
 const double kFontVerySmall = 10;
 const double kFontSmall = 13;
@@ -255,8 +256,10 @@ class _CustomerDetailsState extends State<CustomerDetails> with RouteAware {
     List<double> balances = List.filled(ledger.length, 0);
     // Traverse from end to start
     for (int i = ledger.length - 1; i >= 0; i--) {
-      final credit = double.tryParse(ledger[i]['creditAmount']?.toString() ?? "0") ?? 0;
-      final debit = double.tryParse(ledger[i]['debitAmount']?.toString() ?? "0") ?? 0;
+      final credit =
+          double.tryParse(ledger[i]['creditAmount']?.toString() ?? "0") ?? 0;
+      final debit =
+          double.tryParse(ledger[i]['debitAmount']?.toString() ?? "0") ?? 0;
       sum += credit - debit;
       balances[i] = sum;
     }
@@ -272,8 +275,9 @@ class _CustomerDetailsState extends State<CustomerDetails> with RouteAware {
     final ledgerId = entry['ledgerId']?.toString() ?? "";
 
     // Show balance with minus sign if negative
-    final String balanceText =
-    (runningBalance < 0 ? "-₹${runningBalance.abs().toStringAsFixed(2)}" : "₹${runningBalance.toStringAsFixed(2)}");
+    final String balanceText = (runningBalance < 0
+        ? "-₹${runningBalance.abs().toStringAsFixed(2)}"
+        : "₹${runningBalance.toStringAsFixed(2)}");
 
     return GestureDetector(
       onTap: () async {
@@ -325,7 +329,7 @@ class _CustomerDetailsState extends State<CustomerDetails> with RouteAware {
                         padding: const EdgeInsets.symmetric(
                             vertical: 2, horizontal: 8),
                         decoration: BoxDecoration(
-                          color: const Color(0xCEDF9F4D).withOpacity(0.18), // Cream background
+                          color: const Color(0xCEDF9F4D).withOpacity(0.18),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
@@ -354,13 +358,11 @@ class _CustomerDetailsState extends State<CustomerDetails> with RouteAware {
                   ],
                 ),
               ),
-              // Entries, You Gave, You Get
               Expanded(
                 flex: 7,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    // You Gave (show pinkish background always)
                     Container(
                       width: 80,
                       alignment: Alignment.centerLeft,
@@ -391,7 +393,6 @@ class _CustomerDetailsState extends State<CustomerDetails> with RouteAware {
                         ),
                       ),
                     ),
-                    // You Get
                     Container(
                       width: 80,
                       alignment: Alignment.centerRight,
@@ -453,7 +454,6 @@ class _CustomerDetailsState extends State<CustomerDetails> with RouteAware {
       displayAmount = 0.0;
     }
 
-    // Compute reversed running balances (so that the last entry is at the bottom and matches the bottom row)
     final reversedRunningBalances = _reversedRunningBalances();
 
     return WillPopScope(
@@ -469,7 +469,6 @@ class _CustomerDetailsState extends State<CustomerDetails> with RouteAware {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Top Row: Back, Title, Settings
                   Padding(
                     padding: const EdgeInsets.only(
                         left: 0, right: 0, top: 0, bottom: 0),
@@ -492,15 +491,29 @@ class _CustomerDetailsState extends State<CustomerDetails> with RouteAware {
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.settings, color: Colors.white),
-                          onPressed: () {
-                            Navigator.push(context, MaterialPageRoute(builder: (context) => SettingsScreen(),));
+                          icon: const Icon(Icons.edit, color: Colors.white),
+                          onPressed: () async {
+                            final result = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => AddCustomerPage(
+                                  companyId: widget.companyId,
+                                  initialName: accountName,
+                                  initialRemark: accountRemark,
+                                  accountId: widget.accountId,
+                                  isEdit: true,
+                                ),
+                              ),
+                            );
+                            if (result == true) {
+                              fetchAllData();
+                              dataChanged = true;
+                            }
                           },
                         ),
                       ],
                     ),
                   ),
-                  // Summary Card (falls inside AppBar)
                   Container(
                     width: double.infinity,
                     margin: const EdgeInsets.fromLTRB(14, 0, 14, 12),
@@ -559,7 +572,6 @@ class _CustomerDetailsState extends State<CustomerDetails> with RouteAware {
                 style: const TextStyle(fontSize: kFontLarge)))
             : Column(
           children: [
-            // Labels Row (above the list, shown only once)
             Padding(
               padding: const EdgeInsets.only(
                   left: 18, right: 12, top: 8, bottom: 2),
@@ -623,7 +635,6 @@ class _CustomerDetailsState extends State<CustomerDetails> with RouteAware {
                 ],
               ),
             ),
-            // Ledger list
             Expanded(
               child: Container(
                 color: Colors.transparent,
@@ -634,8 +645,7 @@ class _CustomerDetailsState extends State<CustomerDetails> with RouteAware {
                     children: [
                       Icon(Icons.inbox,
                           size: 60,
-                          color:
-                          Colors.grey.withOpacity(0.7)),
+                          color: Colors.grey.withOpacity(0.7)),
                       const SizedBox(height: 12),
                       Text(
                         "No entry available, add now",
@@ -651,8 +661,8 @@ class _CustomerDetailsState extends State<CustomerDetails> with RouteAware {
                       horizontal: 10, vertical: 0),
                   itemCount: ledger.length,
                   itemBuilder: (context, index) {
-                    // Use reversed running balance for visible row
-                    final runningBalance = reversedRunningBalances[index];
+                    final runningBalance =
+                    reversedRunningBalances[index];
                     return buildLedgerItem(
                       ledger[index],
                       runningBalance,
@@ -661,7 +671,6 @@ class _CustomerDetailsState extends State<CustomerDetails> with RouteAware {
                 ),
               ),
             ),
-            // Bottom buttons container
             SafeArea(
               top: false,
               child: Padding(

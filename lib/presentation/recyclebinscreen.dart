@@ -3,12 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
-// Font sizes and styles copied from CustomerDetails
-const double kFontVerySmall = 10;
-const double kFontSmall = 12;
-const double kFontMedium = 10;
-const double kFontLarge = 10;
-const double kFontXLarge = 10;
+// UI constants based on the image
+const double kFontSmall = 12.0;
+const double kFontMedium = 15.0;
+const double kFontLarge = 17.0;
 
 class RecycleBinScreen extends StatefulWidget {
   const RecycleBinScreen({Key? key}) : super(key: key);
@@ -59,8 +57,11 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data["meta"]?["status"] == true) {
+          List<dynamic> entries = data["data"] ?? [];
+          // Fetch customer names for entries that require it
+          List<dynamic> enriched = await _enrichWithCustomerNames(entries, authKey);
           setState(() {
-            recycleLedger = data["data"] ?? [];
+            recycleLedger = enriched;
             isLoading = false;
           });
         } else {
@@ -81,6 +82,35 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
         isLoading = false;
       });
     }
+  }
+
+  Future<List<dynamic>> _enrichWithCustomerNames(List<dynamic> entries, String authKey) async {
+    // For each entry, fetch customerName if missing and accountId is present
+    List<dynamic> enriched = [];
+    for (final entry in entries) {
+      if ((entry['customerName'] == null || entry['customerName'].toString().trim().isEmpty) &&
+          (entry['accountId'] != null && entry['accountId'].toString().isNotEmpty)) {
+        try {
+          final resp = await http.get(
+            Uri.parse("http://account.galaxyex.xyz/v1/user/api//account/get-account-details/${entry['accountId']}"),
+            headers: {
+              "Authkey": authKey,
+              "Content-Type": "application/json",
+            },
+          );
+          if (resp.statusCode == 200) {
+            final jsonData = json.decode(resp.body);
+            if (jsonData['meta'] != null && jsonData['meta']['status'] == true) {
+              entry['customerName'] = jsonData['data']?['name'] ?? "Customer";
+            }
+          }
+        } catch (_) {
+          // Ignore errors, fallback to default
+        }
+      }
+      enriched.add(entry);
+    }
+    return enriched;
   }
 
   Future<void> restoreLedger(String ledgerId) async {
@@ -125,170 +155,227 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
     });
   }
 
+  Future<void> deleteLedger(String ledgerId) async {
+    // Implement the permanent delete logic if needed
+    _showSnackBar("Permanent delete not implemented.");
+    // After deletion, refresh the bin:
+    // await fetchRecycleLedger();
+  }
+
   void _showSnackBar(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(msg)),
     );
   }
 
-  String formatDateTime(int milliseconds) {
-    final dt = DateTime.fromMillisecondsSinceEpoch(milliseconds);
-    int hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
-    String ampm = dt.hour >= 12 ? 'PM' : 'AM';
-    return "${dt.day.toString().padLeft(2, '0')} "
-        "${_monthName(dt.month)} "
-        "${dt.year} "
-        "${hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')} $ampm";
+  String _getTimeAgoLabel(int timestampMillis, bool isEntry) {
+    final now = DateTime.now();
+    final deleted = DateTime.fromMillisecondsSinceEpoch(timestampMillis);
+    final diff = now.difference(deleted);
+    String ago;
+    if (diff.inMinutes < 1) {
+      ago = "just now";
+    } else if (diff.inMinutes < 60) {
+      ago = "${diff.inMinutes} minutes ago";
+    } else if (diff.inHours < 24) {
+      ago = "${diff.inHours} hours ago";
+    } else {
+      ago = "${diff.inDays} days ago";
+    }
+    return isEntry
+        ? "Entry deleted $ago"
+        : "Customer deleted $ago";
   }
 
-  String _monthName(int month) {
-    const months = [
-      "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-    ];
-    return months[(month - 1).clamp(0, 11)];
+  // Returns a leading icon based on type
+  Widget _buildLeading(Map<String, dynamic> entry) {
+    return CircleAvatar(
+      radius: 22,
+      backgroundColor: const Color(0xFFE6ECF5),
+      child: const Icon(Icons.sticky_note_2_outlined, color: Color(0xFF2D486C), size: 28),
+    );
   }
+
+  // Format ₹ 432,750 style
+  String formatAmount(num amt) {
+    // Use Indian numbering format with commas
+    String s = amt.abs().toStringAsFixed(0);
+    if (s.length <= 3) return amt >= 0 ? "₹ $s" : "-₹ $s";
+    String last3 = s.substring(s.length - 3);
+    String rest = s.substring(0, s.length - 3);
+    rest = rest.replaceAllMapped(RegExp(r'\B(?=(\d{2})+(?!\d))'), (match) => ",");
+    return (amt < 0 ? "-₹ " : "₹ ") + rest + (rest.isNotEmpty ? "," : "") + last3;
+  }
+
+  // Returns green for get, red for give
+  Color amountColor(num amt) => amt >= 0 ? const Color(0xFF198754) : const Color(0xffc96868);
+
+  // Returns "You got"/"You gave" and color
+  String youLabel(num amt) => amt >= 0 ? "You got" : "You gave";
 
   Widget buildLedgerItem(Map<String, dynamic> entry) {
     final credit = double.tryParse(entry['creditAmount']?.toString() ?? "0") ?? 0;
     final debit = double.tryParse(entry['debitAmount']?.toString() ?? "0") ?? 0;
-    final dateMillis = entry['ledgerDate'] ?? 0;
-    final remark = entry['remark'] ?? "";
+    final amount = credit > 0 ? credit : -debit;
+    final isCredit = credit > 0;
+    final name = entry['customerName'] ?? entry['name'] ?? "Customer";
     final ledgerId = entry['ledgerId']?.toString() ?? entry['_id']?.toString() ?? "";
+    final deletedTime = entry['deleteDate'] ?? entry['deletedAt'] ?? entry['ledgerDate'] ?? DateTime.now().millisecondsSinceEpoch;
+    final isEntry = entry.containsKey('creditAmount') || entry.containsKey('debitAmount');
+    final entrySource = entry['source'] ?? entry['remark'] ?? "";
+    final deletedLabel = _getTimeAgoLabel(deletedTime, isEntry);
 
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 7),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
+    return Card(
+      color: Colors.white,
+      margin: const EdgeInsets.only(bottom: 6, top: 6),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 8),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+        child: Column(
           children: [
-            // Left: Date + Remark (CustomerDetails style)
-            Expanded(
-              flex: 6,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    formatDateTime(dateMillis),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: kFontSmall,
-                      color: Colors.black,
-                    ),
-                  ),
-                  if (remark.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 1),
-                      child: Text(
-                        remark,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildLeading(entry),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
                         style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
+                          fontWeight: FontWeight.w600,
+                          fontSize: kFontLarge,
+                          color: Color(0xFF2D486C),
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                ],
-              ),
-            ),
-            // Entries, You Gave, You Get (CustomerDetails style)
-            Expanded(
-              flex: 7,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  // You Gave (pinkish background always)
-                  Container(
-                    width: 70,
-                    alignment: Alignment.centerLeft,
-                    child: Container(
-                      height: 50,
-                      decoration: BoxDecoration(
-                        color: Color(0xffd63384).withOpacity(0.05),
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          const Icon(Icons.delete_outline, size: 15, color: Colors.grey),
+                          const SizedBox(width: 4),
+                          Text(
+                            deletedLabel,
+                            style: const TextStyle(fontSize: 12, color: Colors.grey),
+                          ),
+                        ],
                       ),
-                      padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 10),
-                      alignment: Alignment.centerRight,
-                      child: debit == 0
-                          ? const Text(
-                        "",
+                      if (entrySource.toString().isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            isEntry ? "Entry from $entrySource" : "Customer from $entrySource",
+                            style: TextStyle(color: Colors.black54, fontSize: kFontSmall),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                // Amount and "You got"/"You gave"
+                Padding(
+                  padding: const EdgeInsets.only(left: 12, right: 2, top: 6),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        formatAmount(amount),
                         style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 17,
+                          color: amountColor(amount),
+                        ),
+                      ),
+                      Text(
+                        youLabel(amount),
+                        style: TextStyle(
+                          color: amountColor(amount),
                           fontWeight: FontWeight.w500,
-                          fontSize: 14.5,
-                          color: Colors.red,
+                          fontSize: 12,
                         ),
                       )
-                          : Text(
-                        "₹${debit.toStringAsFixed(2)}",
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w500,
-                          fontSize: 13,
-                          color: Colors.red,
-                        ),
-                      ),
-                    ),
+                    ],
                   ),
-                  // You Get
-                  Container(
-                    width: 80,
-                    alignment: Alignment.centerRight,
-                    child: credit == 0
-                        ? const SizedBox.shrink()
-                        : Text(
-                      "₹${credit.toStringAsFixed(2)}",
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w500,
-                        fontSize: 13,
-                        color: Color(0xFF198754),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // Restore icon
-            Padding(
-              padding: const EdgeInsets.only(right: 8, left: 6, top: 10),
-              child: isRestoring && restoringLedgerId == ledgerId
-                  ? const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.green,
                 ),
-              )
-                  : GestureDetector(
-                onTap: () async {
-                  final confirm = await showDialog<bool>(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      title: const Text("Restore Ledger"),
-                      content: const Text("Are you sure you want to restore this ledger?"),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pop(false),
-                          child: const Text("Cancel"),
-                        ),
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pop(true),
-                          child: const Text("Restore", style: TextStyle(color: Colors.green)),
-                        ),
-                      ],
+              ],
+            ),
+            const SizedBox(height: 6),
+            Divider(),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton.icon(
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFF2D486C),
+                      textStyle: const TextStyle(fontWeight: FontWeight.w600),
                     ),
-                  );
-                  if (confirm == true) {
-                    await restoreLedger(ledgerId);
-                  }
-                },
-                child: const Icon(Icons.restore, color: Color(0xFF2D486C), size: 22),
-              ),
+                    onPressed: isRestoring && restoringLedgerId == ledgerId
+                        ? null
+                        : () async {
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text("Undo Delete"),
+                          content: const Text("Are you sure you want to restore this item?"),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(false),
+                              child: const Text("Cancel"),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(true),
+                              child: const Text("Undo", style: TextStyle(color: Color(0xFF2D486C))),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirm == true) {
+                        await restoreLedger(ledgerId);
+                      }
+                    },
+                    icon: const Icon(Icons.restore_outlined, size: 20),
+                    label: const Text("Undo"),
+                  ),
+                ),
+
+                Expanded(
+                  child: TextButton.icon(
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      textStyle: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    onPressed: isRestoring && restoringLedgerId == ledgerId
+                        ? null
+                        : () async {
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text("Delete Permanently"),
+                          content: const Text("Are you sure you want to permanently delete this item?"),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(false),
+                              child: const Text("Cancel"),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(true),
+                              child: const Text("Delete", style: TextStyle(color: Colors.red)),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirm == true) {
+                        await deleteLedger(ledgerId);
+                      }
+                    },
+                    icon: const Icon(Icons.delete_outline, size: 18),
+                    label: const Text("Delete"),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -304,9 +391,7 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
         preferredSize: const Size.fromHeight(60),
         child: AppBar(
           backgroundColor: const Color(0xFF265E85),
-          leading: const BackButton(
-            color: Colors.white,
-          ),
+          leading: const BackButton(color: Colors.white),
           elevation: 0,
           title: const Text(
             "Recycle Bin",
@@ -314,9 +399,7 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
           ),
           centerTitle: true,
           shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(
-              bottom: Radius.circular(22),
-            ),
+            borderRadius: BorderRadius.vertical(bottom: Radius.circular(22)),
           ),
         ),
       ),
@@ -341,7 +424,7 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
           ),
         )
             : ListView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
           itemCount: recycleLedger.length,
           itemBuilder: (context, idx) {
             return buildLedgerItem(recycleLedger[idx]);

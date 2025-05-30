@@ -2,12 +2,11 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'Reportscreen.dart'; // <-- Import if your ReportScreen is in the same folder, adjust path as needed
 
-// --- Color Theme --- //
 const Color kPrimaryBlue = Color(0xFF205781);
-const Color kGiveRed = Color(0xFFD32F2F); // Red for "You Will Give"
-const Color kGetGreen = Color(0xFF205781); // Green for "You Will Get"
-const Color kBalanceGreen = Color(0xFF205781); // Dark green for "Balance"
+const Color kGiveRed = Color(0xFFD32F2F);
+const Color kGetBlue = Color(0xFF205781);
 
 class AllCompanyTrialScreen extends StatefulWidget {
   const AllCompanyTrialScreen({super.key});
@@ -63,10 +62,9 @@ class _AllCompanyTrialScreenState extends State<AllCompanyTrialScreen> {
         final data = json.decode(response.body);
         if (data['meta']?['status'] == true) {
           companies = data['data'] ?? [];
-          final overall = data['overallTotals'] ?? {};
-          totalCredit = overall['totalCreditSum'] ?? 0;
-          totalDebit = overall['totalDebitSum'] ?? 0;
-          totalBalance = overall['totalBalanceSum'] ?? 0;
+          totalCredit = data['overallTotals']?['totalCreditSum'] ?? 0;
+          totalDebit = data['overallTotals']?['totalDebitSum'] ?? 0;
+          totalBalance = data['overallTotals']?['totalBalanceSum'] ?? 0;
           setState(() {
             isLoading = false;
             errorMsg = null;
@@ -113,6 +111,34 @@ class _AllCompanyTrialScreenState extends State<AllCompanyTrialScreen> {
         (parts[1].isNotEmpty ? parts[1][0] : '');
   }
 
+  // For list tiles: color based on per-company credit - debit
+  Color getListBalanceColor(num credit, num debit) {
+    final diff = credit - debit;
+    if (diff < 0) return kGiveRed;
+    if (diff > 0) return kGetBlue;
+    return Colors.grey[700]!;
+  }
+
+  // For summary card: color based on overall credit - debit
+  Color getCardBalanceColor() {
+    final diff = totalCredit - totalDebit;
+    if (diff < 0) return kGiveRed;
+    if (diff > 0) return kGetBlue;
+    return Colors.grey[700]!;
+  }
+
+  String formatCompactAmount(num amount) {
+    if (amount.abs() >= 10000000) {
+      return "${(amount / 10000000).toStringAsFixed(amount % 10000000 == 0 ? 0 : 2)}Cr";
+    } else if (amount.abs() >= 100000) {
+      return "${(amount / 100000).toStringAsFixed(amount % 100000 == 0 ? 0 : 2)}L";
+    } else if (amount.abs() >= 1000) {
+      return "${(amount / 1000).toStringAsFixed(amount % 1000 == 0 ? 0 : 1)}K";
+    } else {
+      return amount.toStringAsFixed(2);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -140,6 +166,7 @@ class _AllCompanyTrialScreenState extends State<AllCompanyTrialScreen> {
           ? Center(child: Text(errorMsg!, style: const TextStyle(color: Colors.red)))
           : Column(
         children: [
+          // ---- SUMMARY CARD ----
           Container(
             color: kPrimaryBlue,
             padding: const EdgeInsets.all(8),
@@ -148,31 +175,61 @@ class _AllCompanyTrialScreenState extends State<AllCompanyTrialScreen> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    InfoCard(
-                      title: "You Will Give",
-                      amount: "₹${totalDebit.toStringAsFixed(2)}",
-                      amountFontSize: 12,
-                      amountColor: kGiveRed,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        InfoCard(
+                          title: "You Will Give",
+                          amount: "₹${formatCompactAmount(totalDebit)}",
+                          amountFontSize: 12,
+                          amountColor: kGiveRed,
+                        ),
+                        InfoCard(
+                          title: "You Will Get",
+                          amount: "₹${formatCompactAmount(totalCredit)}",
+                          amountFontSize: 12,
+                          amountColor: kGetBlue,
+                        ),
+                        InfoCard(
+                          title: "Balance",
+                          amount: "₹${formatCompactAmount(totalBalance)}",
+                          amountFontSize: 12,
+                          amountColor: getCardBalanceColor(),
+                        ),
+                      ],
                     ),
-                    InfoCard(
-                      title: "You Will Get",
-                      amount: "₹${totalCredit.toStringAsFixed(2)}",
-                      amountFontSize: 12,
-                      amountColor: kGetGreen,
+                  ),
+                  Divider(
+                    color: Colors.grey.shade300,
+                    thickness: 1,
+                    height: 0,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 5.0),
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => ReportScreen()),
+                        );
+                      },
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: const [
+                          Icon(Icons.file_copy,
+                              size: 20, color: Colors.grey),
+                          SizedBox(width: 8),
+                          Text("Get Report",
+                              style: TextStyle(fontSize: 12)),
+                        ],
+                      ),
                     ),
-                    InfoCard(
-                      title: "Balance",
-                      amount: "₹${totalBalance.toStringAsFixed(2)}",
-                      amountFontSize: 12,
-                      amountColor: kBalanceGreen,
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -197,6 +254,8 @@ class _AllCompanyTrialScreenState extends State<AllCompanyTrialScreen> {
               itemBuilder: (context, index) {
                 final company = companies[index];
                 final name = company['companyName'] ?? "Unknown Name";
+                final credit = company['totalCredit'] ?? 0;
+                final debit = company['totalDebit'] ?? 0;
                 final balance = company['totalBalance'] ?? 0;
                 return Column(
                   children: [
@@ -226,9 +285,9 @@ class _AllCompanyTrialScreenState extends State<AllCompanyTrialScreen> {
                           ),
                           const SizedBox(width: 12),
                           Text(
-                            "₹${balance.toStringAsFixed(2)}",
-                            style: const TextStyle(
-                              color: kBalanceGreen,
+                            "₹${formatCompactAmount(balance)}",
+                            style: TextStyle(
+                              color: getListBalanceColor(credit, debit),
                               fontWeight: FontWeight.bold,
                               fontSize: 15,
                             ),

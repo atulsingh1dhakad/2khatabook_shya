@@ -138,7 +138,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   SidebarButton(
                     icon: Icons.backup_outlined,
-                    label: "Backup Settings",
+                    label: "Backup & Delete",
                     onTap: () {},
                   ),
                   SidebarButton(

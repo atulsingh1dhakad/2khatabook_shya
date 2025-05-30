@@ -56,6 +56,7 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
   }
 
   Future<void> _pickDate() async {
+    if (isEdit) return; // Prevent date picking in edit mode
     DateTime? picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate,
@@ -69,6 +70,16 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
     }
   }
 
+  String get formattedDate {
+    final months = [
+      'jan', 'feb', 'mar', 'apr', 'may', 'jun',
+      'jul', 'aug', 'sep', 'oct', 'nov', 'dec'
+    ];
+    return "${_selectedDate.day.toString().padLeft(2, '0')}-"
+        "${months[_selectedDate.month - 1]}-"
+        "${_selectedDate.year}";
+  }
+
   String get isoDate =>
       "${_selectedDate.year.toString().padLeft(4, '0')}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}";
 
@@ -80,7 +91,6 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
     final authKey = prefs.getString("auth_token");
     final amount = double.tryParse(_amountController.text.trim()) ?? 0;
 
-    // Match Postman JSON exactly!
     final Map<String, dynamic> body = {
       if (isEdit) "ledgerId": widget.ledgerId,
       "amount": amount,
@@ -90,8 +100,6 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
       "accountId": widget.accountId,
       "date": isoDate,
     };
-
-    print("Submitting body: $body");
 
     final url = Uri.parse('http://account.galaxyex.xyz/v1/user/api/account/add-ledger');
 
@@ -104,8 +112,6 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
         },
         body: json.encode(body),
       );
-      print("Status: ${response.statusCode}");
-      print("Body: ${response.body}");
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> jsonResp = json.decode(response.body);
@@ -128,8 +134,16 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
     }
   }
 
+  void _onAttachFile() {
+    // TODO: Implement file/camera picker logic
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Attach file/camera not implemented")),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Both widgets width = half - spacing, height = 40
     return Scaffold(
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
@@ -169,23 +183,58 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
                 ),
               ),
               const SizedBox(height: 10),
-              InkWell(
-                onTap: _pickDate,
-                child: InputDecorator(
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 40,
+                      child: IgnorePointer(
+                        ignoring: isEdit, // Prevent editing date on update
+                        child: InkWell(
+                          onTap: _pickDate,
+                          child: InputDecorator(
+                            decoration: InputDecoration(
+                              border: const OutlineInputBorder(),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              enabled: !isEdit,
+                              fillColor: isEdit ? Colors.grey.shade100 : null,
+                              filled: isEdit,
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    formattedDate,
+                                    style: const TextStyle(fontSize: 13),
+                                  ),
+                                ),
+                                const Icon(Icons.calendar_today, size: 16),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                  child: Row(
-                    children: [
-                      Expanded(child: Text(
-                          "${_selectedDate.day.toString().padLeft(2, '0')}-"
-                              "${_selectedDate.month.toString().padLeft(2, '0')}-"
-                              "${_selectedDate.year}")),
-                      const Icon(Icons.calendar_today, size: 18),
-                    ],
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: SizedBox(
+                      height: 40,
+                      child: OutlinedButton.icon(
+                        onPressed: _onAttachFile,
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          side: const BorderSide(),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(7),
+                          ),
+                        ),
+                        icon: const Icon(Icons.camera_alt, size: 18, color: Colors.black,),
+                        label: const Text("Attach File", style: TextStyle(fontSize: 13,color: Colors.grey)),
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
               const SizedBox(height: 20),
             ],

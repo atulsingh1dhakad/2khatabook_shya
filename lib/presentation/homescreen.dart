@@ -13,9 +13,17 @@ const double kFontMedium = 16;
 const double kFontLarge = 15;
 const double kFontXLarge = 18;
 
+enum FilterBy { all, youWillGet, youWillGive, settled }
+enum SortBy { mostRecent, highestAmount, byName, oldest, leastAmount }
+
+double toDouble(dynamic value) {
+  if (value is int) return value.toDouble();
+  if (value is double) return value;
+  return double.tryParse(value?.toString() ?? '0') ?? 0.0;
+}
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
-
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
@@ -33,6 +41,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   double balance = 0;
   String searchQuery = "";
 
+  FilterBy _selectedFilter = FilterBy.all;
+  SortBy _selectedSort = SortBy.highestAmount;
+
+  AppLifecycleState? _lastLifecycleState;
+
   @override
   void initState() {
     super.initState();
@@ -46,8 +59,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  /// Reads the lastUpdate value from backend (`acc['lastUpdate']`) and formats it.
-  /// Falls back to "Never" if not available or invalid.
+  // Refresh page every time it comes in focus
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      fetchCompanies();
+      if (selectedCompanyId != null) {
+        fetchAccounts(selectedCompanyId!);
+      }
+    }
+    _lastLifecycleState = state;
+  }
+
   String getFormattedLastUpdate(Map<String, dynamic> acc) {
     final lastUpdate = acc['lastUpdate'];
     if (lastUpdate == null) return "Never";
@@ -65,13 +88,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       return "$date $time";
     } catch (_) {
       return "Never";
-    }
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && selectedCompanyId != null) {
-      fetchAccounts(selectedCompanyId!);
     }
   }
 
@@ -194,9 +210,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         if (data['meta']['status']) {
           setState(() {
             accounts = data['data'] ?? [];
-            totalCredit = double.tryParse(data['overallTotals']?['totalCreditSum']?.toString() ?? "0") ?? 0;
-            totalDebit = double.tryParse(data['overallTotals']?['totalDebitSum']?.toString() ?? "0") ?? 0;
-            balance = double.tryParse(data['overallTotals']?['totalBalanceSum']?.toString() ?? "0") ?? (totalCredit - totalDebit);
+            // ONLY use backend values below.
+            totalCredit = toDouble(data['overallTotals']?['totalCreditSum']);
+            totalDebit = toDouble(data['overallTotals']?['totalDebitSum']);
+            balance = toDouble(data['overallTotals']?['totalBalanceSum']);
             isLoadingAccounts = false;
             errorMsg = null;
           });
@@ -240,7 +257,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (newCompanyId != null) {
       fetchAccounts(newCompanyId);
     }
-    Navigator.of(context).pop(); // Close the bottom sheet
+    Navigator.of(context).pop();
   }
 
   String getInitials(String name, int index) {
@@ -398,14 +415,206 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
+  String formatCompactAmount(num amount) {
+    if (amount.abs() >= 10000000) {
+      return "${(amount / 10000000).toStringAsFixed(amount % 10000000 == 0 ? 0 : 2)}Cr";
+    } else if (amount.abs() >= 100000) {
+      return "${(amount / 100000).toStringAsFixed(amount % 100000 == 0 ? 0 : 2)}L";
+    } else if (amount.abs() >= 1000) {
+      return "${(amount / 1000).toStringAsFixed(amount % 1000 == 0 ? 0 : 1)}K";
+    } else {
+      return amount.toStringAsFixed(2);
+    }
+  }
+
+  Color getBalanceColor() {
+    // If (totalCredit - totalDebit) is negative, color red, else as before
+    if ((totalCredit - totalDebit) < 0) {
+      return Colors.red;
+    } else if (balance > 0) {
+      return const Color(0xFF2D486C);
+    } else {
+      return Colors.grey;
+    }
+  }
+
+  Color getCustomerAmountColor(double totalCreditAmount, double totalDebitAmount) {
+    double diff = totalCreditAmount - totalDebitAmount;
+    return diff < 0 ? Colors.red : const Color(0xFF2D486C);
+  }
+
+  List<dynamic> getFilteredAndSortedAccounts() {
+    List<dynamic> filtered = accounts.where((acc) {
+      final name = (acc['name'] ?? '').toString().toLowerCase();
+      final credit = toDouble(acc['totalCreditAmount']);
+      final debit = toDouble(acc['totalDebitAmount']);
+      final accBalance = toDouble(acc['total_Balance']);
+      if (searchQuery.isNotEmpty && !name.contains(searchQuery.toLowerCase())) {
+        return false;
+      }
+      switch (_selectedFilter) {
+        case FilterBy.all:
+          return true;
+        case FilterBy.youWillGet:
+          return credit - debit > 0;
+        case FilterBy.youWillGive:
+          return credit - debit < 0;
+        case FilterBy.settled:
+          return accBalance == 0;
+      }
+    }).toList();
+
+    switch (_selectedSort) {
+      case SortBy.mostRecent:
+        filtered.sort((a, b) =>
+            ((b['lastUpdate'] ?? b['createdAt'] ?? '') ?? '')
+                .toString()
+                .compareTo(((a['lastUpdate'] ?? a['createdAt'] ?? '') ?? '').toString()));
+        break;
+      case SortBy.highestAmount:
+        filtered.sort((b, a) => (toDouble(a['total_Balance'])).compareTo(toDouble(b['total_Balance'])));
+        break;
+      case SortBy.byName:
+        filtered.sort((a, b) =>
+            ((a['name'] ?? '') as String).toLowerCase().compareTo(((b['name'] ?? '') as String).toLowerCase()));
+        break;
+      case SortBy.oldest:
+        filtered.sort((a, b) =>
+            ((a['lastUpdate'] ?? a['createdAt'] ?? '') ?? '')
+                .toString()
+                .compareTo(((b['lastUpdate'] ?? b['createdAt'] ?? '') ?? '').toString()));
+        break;
+      case SortBy.leastAmount:
+        filtered.sort((a, b) => (toDouble(a['total_Balance'])).compareTo(toDouble(b['total_Balance'])));
+        break;
+    }
+    return filtered;
+  }
+
+  void _showFilterBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      isScrollControlled: true,
+      builder: (context) {
+        FilterBy tempFilter = _selectedFilter;
+        SortBy tempSort = _selectedSort;
+        return StatefulBuilder(builder: (context, setModalState) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    "Filter by",
+                    style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                        color: Colors.grey[800]),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    _buildFilterChip("All", FilterBy.all, tempFilter, setModalState, (val) { tempFilter = val; }),
+                    _buildFilterChip("You will get", FilterBy.youWillGet, tempFilter, setModalState, (val) { tempFilter = val; }),
+                    _buildFilterChip("You will give", FilterBy.youWillGive, tempFilter, setModalState, (val) { tempFilter = val; }),
+                    _buildFilterChip("Settled", FilterBy.settled, tempFilter, setModalState, (val) { tempFilter = val; }),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    "Sort by",
+                    style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                        color: Colors.grey[800]),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _buildSortRadio("Most Recent", SortBy.mostRecent, tempSort, setModalState, (val) { tempSort = val; }),
+                _buildSortRadio("Highest Amount", SortBy.highestAmount, tempSort, setModalState, (val) { tempSort = val; }),
+                _buildSortRadio("By Name (A-Z)", SortBy.byName, tempSort, setModalState, (val) { tempSort = val; }),
+                _buildSortRadio("Oldest", SortBy.oldest, tempSort, setModalState, (val) { tempSort = val; }),
+                _buildSortRadio("Least Amount", SortBy.leastAmount, tempSort, setModalState, (val) { tempSort = val; }),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF205781),
+                      minimumSize: const Size.fromHeight(48),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _selectedFilter = tempFilter;
+                        _selectedSort = tempSort;
+                      });
+                      Navigator.pop(context);
+                    },
+                    child: const Text(
+                      "VIEW RESULT",
+                      style: TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        });
+      },
+    );
+  }
+
+  Widget _buildFilterChip(String label, FilterBy value, FilterBy group, void Function(void Function()) setModalState, void Function(FilterBy) setTemp) {
+    final bool selected = value == group;
+    return ChoiceChip(
+      label: Text(label, style: TextStyle(
+        color: selected ? Colors.white : const Color(0xFF205781),
+        fontWeight: FontWeight.w600,
+      )),
+      selected: selected,
+      selectedColor: const Color(0xFF205781),
+      backgroundColor: Colors.grey[200],
+      onSelected: (_) => setModalState(() { setTemp(value); }),
+    );
+  }
+
+  Widget _buildSortRadio(String label, SortBy value, SortBy group, void Function(void Function()) setModalState, void Function(SortBy) setTemp) {
+    final bool selected = value == group;
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      title: Text(
+        label,
+        style: TextStyle(
+          color: selected ? const Color(0xFF205781) : Colors.grey[900],
+          fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+      trailing: Radio<SortBy>(
+        value: value,
+        groupValue: group,
+        onChanged: (sort) => setModalState(() { setTemp(value); }),
+        activeColor: const Color(0xFF205781),
+      ),
+      onTap: () => setModalState(() { setTemp(value); }),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final filteredAccounts = searchQuery.isEmpty
-        ? accounts
-        : accounts.where((acc) {
-      final name = (acc['name'] ?? '').toString().toLowerCase();
-      return name.contains(searchQuery.toLowerCase());
-    }).toList();
+    final filteredAccounts = getFilteredAndSortedAccounts();
 
     return Scaffold(
       appBar: AppBar(
@@ -494,14 +703,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             Expanded(
                               child: InfoCard(
                                 title: "You Will Give",
-                                amount: "₹${totalDebit.toStringAsFixed(2)}",
-                                amountFontSize: kFontLarge,
+                                amount: "₹${formatCompactAmount(totalDebit)}",
+                                amountFontSize: 13,
                                 amountColor: Colors.red,
+                                titleFontSize: 12,
                               ),
                             ),
-                            SizedBox(
-                              width: 10,
-                            ),
+                            SizedBox(width: 10),
                             Column(
                               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                               children: List.generate(
@@ -513,19 +721,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                 ),
                               ),
                             ),
-                            SizedBox(
-                              width: 10,
-                            ),
+                            SizedBox(width: 10),
                             Expanded(
                               child: InfoCard(
                                 title: "You Will Get",
-                                amount: "₹${totalCredit.toStringAsFixed(2)}",
-                                amountFontSize: kFontLarge,
+                                amount: "₹${formatCompactAmount(totalCredit)}",
+                                amountFontSize: 13,
+                                amountColor: const Color(0xFF2D486C),
+                                titleFontSize: 12,
                               ),
                             ),
-                            SizedBox(
-                              width: 10,
-                            ),
+                            SizedBox(width: 10),
                             Column(
                               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                               children: List.generate(
@@ -537,15 +743,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                 ),
                               ),
                             ),
-                            SizedBox(
-                              width: 10,
-                            ),
+                            SizedBox(width: 10),
                             Expanded(
                               child: InfoCard(
                                 title: "Balance",
-                                amount: "₹${balance.toStringAsFixed(2)}",
-                                amountFontSize: kFontLarge,
-                                amountColor: balance < 0 ? Colors.red : null,
+                                amount: "₹${formatCompactAmount(balance)}",
+                                amountFontSize: 13,
+                                amountColor: getBalanceColor(),
+                                titleFontSize: 12,
                               ),
                             ),
                           ],
@@ -559,8 +764,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 5.0),
                         child: GestureDetector(
-                          onTap: (){
-                            Navigator.push(context, MaterialPageRoute(builder: (context) => ReportScreen(),));
+                          onTap: () {
+                            Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (context) => ReportScreen()));
                           },
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -580,26 +788,57 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               )
             ],
           ),
+          // --- SEARCH BAR + FILTER BUTTON ---
           Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: TextField(
-              decoration: InputDecoration(
-                prefixIcon: const Icon(Icons.search),
-                hintText: "Search Customer",
-                hintStyle: TextStyle(fontSize: kFontMedium),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Color(0xff205781)),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            child: Row(
+              children: [
+                // Set both search bar and filter button to same height (49)
+                Expanded(
+                  child: SizedBox(
+                    height: 49,
+                    child: TextField(
+                      decoration: InputDecoration(
+                        prefixIcon: const Icon(Icons.search),
+                        hintText: "Search Customer",
+                        hintStyle: TextStyle(fontSize: kFontMedium),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Color(0xff205781)),
+                        ),
+                        filled: true,
+                        fillColor: const Color(0xFFF5F5F5),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                      ),
+                      style: TextStyle(fontSize: kFontMedium),
+                      onChanged: (value) {
+                        setState(() {
+                          searchQuery = value;
+                        });
+                      },
+                    ),
+                  ),
                 ),
-                filled: true,
-                fillColor: const Color(0xFFF5F5F5),
-              ),
-              style: TextStyle(fontSize: kFontMedium),
-              onChanged: (value) {
-                setState(() {
-                  searchQuery = value;
-                });
-              },
+                const SizedBox(width: 10),
+                SizedBox(
+                  height: 49,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      elevation: 0,
+                      backgroundColor: Colors.white,
+                      foregroundColor: const Color(0xFF205781),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        side: const BorderSide(color: Color(0xFF205781), width: 1),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                    ),
+                    icon: const Icon(Icons.filter_alt_outlined, color: Color(0xFF205781)),
+                    label: const Text("Filters", style: TextStyle(color: Color(0xFF205781), fontWeight: FontWeight.w600)),
+                    onPressed: _showFilterBottomSheet,
+                  ),
+                ),
+              ],
             ),
           ),
           Expanded(
@@ -610,13 +849,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.person_outline,
-                      size: 70, color: Colors.grey.withOpacity(0.7)),
+                  Icon(Icons.person_outline, size: 70, color: Colors.grey.withOpacity(0.7)),
                   const SizedBox(height: 12),
                   Text(
                     "No customer available",
-                    style: TextStyle(
-                        fontSize: kFontLarge, color: Colors.grey[700]),
+                    style: TextStyle(fontSize: kFontLarge, color: Colors.grey[700]),
                   ),
                 ],
               ),
@@ -626,10 +863,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               itemBuilder: (context, index) {
                 final acc = filteredAccounts[index];
                 final name = acc['name'] ?? "Unknown Name";
-                final totalBalance = acc['total_Balance'] ?? 0.0;
+                final totalCreditAmount = toDouble(acc['totalCreditAmount']);
+                final totalDebitAmount = toDouble(acc['totalDebitAmount']);
+                final totalBalance = toDouble(acc['total_Balance']);
                 final accountId = acc['accountId'];
                 final companyId = selectedCompanyId;
-                // Use backend lastUpdate (from backend) here:
                 final lastUpdateStr = getFormattedLastUpdate(acc);
 
                 return InkWell(
@@ -649,8 +887,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   },
                   child: CustomerTile(
                     name: name,
-                    amount: "₹${totalBalance.toStringAsFixed(2)}",
-                    lastUpdate: lastUpdateStr, // shows "Last update: $lastUpdate" in UI
+                    amount: "₹${formatCompactAmount(totalBalance)}",
+                    lastUpdate: lastUpdateStr,
+                    amountColor: getCustomerAmountColor(totalCreditAmount, totalDebitAmount),
                   ),
                 );
               },
@@ -713,26 +952,33 @@ class InfoCard extends StatelessWidget {
   final String title;
   final String amount;
   final double amountFontSize;
-  final Color? amountColor;
+  final Color amountColor;
+  final double titleFontSize;
 
   const InfoCard({
     required this.title,
     required this.amount,
     this.amountFontSize = kFontLarge,
-    this.amountColor,
+    required this.amountColor,
+    this.titleFontSize = 11,
   });
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(title,
-            style: TextStyle(color: Colors.grey, fontSize: kFontMedium)),
+        Text(
+          title,
+          style: TextStyle(
+            color: Colors.grey,
+            fontSize: titleFontSize,
+          ),
+        ),
         const SizedBox(height: 4),
         Text(
           amount,
           style: TextStyle(
-            color: amountColor ?? const Color(0xFF2D486C),
+            color: amountColor,
             fontSize: amountFontSize,
             fontWeight: FontWeight.bold,
           ),
@@ -746,8 +992,14 @@ class CustomerTile extends StatelessWidget {
   final String name;
   final String amount;
   final String? lastUpdate;
+  final Color amountColor;
 
-  const CustomerTile({required this.name, required this.amount, this.lastUpdate});
+  const CustomerTile({
+    required this.name,
+    required this.amount,
+    this.lastUpdate,
+    required this.amountColor,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -772,8 +1024,8 @@ class CustomerTile extends StatelessWidget {
             ),
             child: Text(
               amount,
-              style: const TextStyle(
-                color: Colors.black,
+              style: TextStyle(
+                color: amountColor,
                 fontWeight: FontWeight.w400,
                 fontSize: kFontLarge,
               ),
