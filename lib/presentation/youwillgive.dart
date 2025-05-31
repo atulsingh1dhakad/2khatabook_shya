@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -35,6 +38,8 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
   late TextEditingController _remarkController;
   late DateTime _selectedDate;
   bool _isLoading = false;
+
+  File? _pickedFile;
 
   bool get isEdit => widget.ledgerId != null;
 
@@ -91,30 +96,33 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
     final authKey = prefs.getString("auth_token");
     final amount = double.tryParse(_amountController.text.trim()) ?? 0;
 
-    final Map<String, dynamic> body = {
-      if (isEdit) "ledgerId": widget.ledgerId,
-      "amount": amount,
-      "remark": _remarkController.text.trim(),
-      "entryType": "give",
-      "companyId": widget.companyId,
-      "accountId": widget.accountId,
-      "date": isoDate,
-    };
-
     final url = Uri.parse('http://account.galaxyex.xyz/v1/user/api/account/add-ledger');
 
     try {
-      final response = await http.post(
-        url,
-        headers: {
-          "Content-Type": "application/json",
-          "Authkey": authKey ?? "",
-        },
-        body: json.encode(body),
-      );
+      var request = http.MultipartRequest('POST', url);
+
+      request.headers.addAll({
+        "Content-Type": "application/json", // will be overridden by MultipartRequest
+        "Authkey": authKey ?? "",
+      });
+
+      if (isEdit) request.fields["ledgerId"] = widget.ledgerId!;
+      request.fields["amount"] = amount.toString();
+      request.fields["remark"] = _remarkController.text.trim();
+      request.fields["entryType"] = "give";
+      request.fields["companyId"] = widget.companyId;
+      request.fields["accountId"] = widget.accountId;
+      request.fields["date"] = isoDate;
+
+      if (_pickedFile != null) {
+        request.files.add(await http.MultipartFile.fromPath("bill", _pickedFile!.path));
+      }
+
+      final response = await request.send();
 
       if (response.statusCode == 200) {
-        final Map<String, dynamic> jsonResp = json.decode(response.body);
+        final respStr = await response.stream.bytesToString();
+        final Map<String, dynamic> jsonResp = json.decode(respStr);
         if (jsonResp['meta'] != null && jsonResp['meta']['status'] == true) {
           ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text(isEdit ? "Updated successfully!" : "Saved successfully!")));
@@ -134,11 +142,16 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
     }
   }
 
-  void _onAttachFile() {
-    // TODO: Implement file/camera picker logic
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Attach file/camera not implemented")),
-    );
+  Future<void> _onAttachFile() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.any);
+    if (result != null && result.files.single.path != null) {
+      setState(() {
+        _pickedFile = File(result.files.single.path!);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("File attached: ${result.files.single.name}")),
+      );
+    }
   }
 
   @override
@@ -230,7 +243,11 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
                           ),
                         ),
                         icon: const Icon(Icons.camera_alt, size: 18, color: Colors.black,),
-                        label: const Text("Attach File", style: TextStyle(fontSize: 13,color: Colors.grey)),
+                        label: Text(
+                          _pickedFile == null ? "Attach File" : "File: ${_pickedFile!.path.split('/').last}",
+                          style: const TextStyle(fontSize: 13, color: Colors.grey),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ),
                   ),

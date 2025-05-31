@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:Calculator/presentation/sidebarscreen.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -266,6 +267,17 @@ class _CustomerDetailsState extends State<CustomerDetails> with RouteAware {
     return balances;
   }
 
+  /// Responsive font size for amounts, so that number does not wrap or overflow
+  double _getResponsiveFontSize(String value, double maxWidth,
+      {double minFont = 10, double maxFont = 14.5}) {
+    // Estimate: Each character in a number needs about 0.58 * fontSize (roughly)
+    for (double font = maxFont; font >= minFont; font -= 0.5) {
+      final estWidth = value.length * font * 0.58;
+      if (estWidth <= maxWidth) return font;
+    }
+    return minFont;
+  }
+
   Widget buildLedgerItem(Map<String, dynamic> entry, double runningBalance) {
     final credit =
         double.tryParse(entry['creditAmount']?.toString() ?? "0") ?? 0;
@@ -297,122 +309,140 @@ class _CustomerDetailsState extends State<CustomerDetails> with RouteAware {
           dataChanged = true;
         }
       },
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 7),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.grey.shade200),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 8),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Left: Date + Balance cream + Remark
-              Expanded(
-                flex: 6,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      formatDateTime(dateMillis),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: kFontSmall,
-                        color: Colors.black,
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2.0, bottom: 2.0),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 2, horizontal: 8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xCEDF9F4D).withOpacity(0.18),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          balanceText,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Calculate available width for debit/credit fields
+          final debitMaxWidth = 80.0 - 20.0;  // Padding fudge
+          final creditMaxWidth = 80.0 - 20.0;
+
+          final debitText = debit == 0 ? "" : "₹${debit.toStringAsFixed(2)}";
+          final creditText = credit == 0 ? "" : "₹${credit.toStringAsFixed(2)}";
+
+          final debitFontSize = _getResponsiveFontSize(debitText, debitMaxWidth);
+          final creditFontSize = _getResponsiveFontSize(creditText, creditMaxWidth);
+
+          return Container(
+            margin: const EdgeInsets.symmetric(vertical: 7),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Left: Date + Balance cream + Remark
+                  Expanded(
+                    flex: 6,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          formatDateTime(dateMillis),
                           style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: kFontSmall,
                             color: Colors.black,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w500,
                           ),
                         ),
-                      ),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2.0, bottom: 2.0),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 2, horizontal: 8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xCEDF9F4D).withOpacity(0.18),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              balanceText,
+                              style: const TextStyle(
+                                color: Colors.black,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (remark.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 1),
+                            child: Text(
+                              remark,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
                     ),
-                    if (remark.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 1),
-                        child: Text(
-                          remark,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
+                  ),
+                  Expanded(
+                    flex: 7,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Container(
+                          width: 80,
+                          alignment: Alignment.centerLeft,
+                          child: Container(
+                            height: 50,
+                            decoration: BoxDecoration(
+                              color: Color(0xffd63384).withOpacity(0.05),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 2, horizontal: 10),
+                            alignment: Alignment.center,
+                            child: debit == 0
+                                ? const Text(
+                              "",
+                              style: TextStyle(
+                                fontWeight: FontWeight.w500,
+                                fontSize: 14.5,
+                                color: Colors.red,
+                              ),
+                            )
+                                : Text(
+                              debitText,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w500,
+                                fontSize: debitFontSize,
+                                color: Colors.red,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
                           ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                  ],
-                ),
+                        Container(
+                          width: 80,
+                          alignment: Alignment.centerRight,
+                          child: credit == 0
+                              ? const SizedBox.shrink()
+                              : Text(
+                            creditText,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w500,
+                              fontSize: creditFontSize,
+                              color: Color(0xFF198754),
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              Expanded(
-                flex: 7,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Container(
-                      width: 80,
-                      alignment: Alignment.centerLeft,
-                      child: Container(
-                        height: 50,
-                        decoration: BoxDecoration(
-                          color: Color(0xffd63384).withOpacity(0.05),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 2, horizontal: 10),
-                        alignment: Alignment.center,
-                        child: debit == 0
-                            ? const Text(
-                          "",
-                          style: TextStyle(
-                            fontWeight: FontWeight.w500,
-                            fontSize: 14.5,
-                            color: Colors.red,
-                          ),
-                        )
-                            : Text(
-                          "₹${debit.toStringAsFixed(2)}",
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w500,
-                            fontSize: 14.5,
-                            color: Colors.red,
-                          ),
-                        ),
-                      ),
-                    ),
-                    Container(
-                      width: 80,
-                      alignment: Alignment.centerRight,
-                      child: credit == 0
-                          ? const SizedBox.shrink()
-                          : Text(
-                        "₹${credit.toStringAsFixed(2)}",
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w500,
-                          fontSize: 14.5,
-                          color: Color(0xFF198754),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -593,18 +623,6 @@ class _CustomerDetailsState extends State<CustomerDetails> with RouteAware {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        Container(
-                          width: 38,
-                          alignment: Alignment.centerRight,
-                          child: Text(
-                            "",
-                            style: TextStyle(
-                              fontSize: kFontVerySmall,
-                              color: Colors.grey[600],
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
                         Container(
                           width: 70,
                           alignment: Alignment.centerLeft,
