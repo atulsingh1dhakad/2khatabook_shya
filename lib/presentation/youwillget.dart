@@ -159,6 +159,129 @@ class _YouWillGetPageState extends State<YouWillGetPage> {
     }
   }
 
+  Widget _buildFilePreview() {
+    if (_pickedFile == null) return const SizedBox.shrink();
+
+    final String ext = _pickedFile!.path.split('.').last.toLowerCase();
+    final imageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
+
+    if (imageExts.contains(ext)) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.grey[100],
+            border: Border.all(color: Colors.grey.shade300, width: 1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(10), bottomLeft: Radius.circular(10)),
+                child: Image.file(
+                  _pickedFile!,
+                  height: 75,
+                  width: 75,
+                  fit: BoxFit.cover,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Attached Image",
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _pickedFile!.path.split('/').last,
+                        style: const TextStyle(fontSize: 13, color: Colors.black54),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              IconButton(
+                icon: const Icon(Icons.close, size: 20, color: Colors.grey),
+                onPressed: () {
+                  setState(() {
+                    _pickedFile = null;
+                  });
+                },
+                tooltip: "Remove attachment",
+              ),
+            ],
+          ),
+        ),
+      );
+    } else {
+      return Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.grey[100],
+            border: Border.all(color: Colors.grey.shade300, width: 1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            children: [
+              Container(
+                margin: const EdgeInsets.only(left: 14, right: 14),
+                child: const Icon(Icons.insert_drive_file, color: Colors.blueAccent, size: 38),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Attached File",
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _pickedFile!.path.split('/').last,
+                        style: const TextStyle(fontSize: 13, color: Colors.black54),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close, size: 20, color: Colors.grey),
+                onPressed: () {
+                  setState(() {
+                    _pickedFile = null;
+                  });
+                },
+                tooltip: "Remove attachment",
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Both widgets width = half - spacing, height = 40
@@ -256,6 +379,7 @@ class _YouWillGetPageState extends State<YouWillGetPage> {
                   ),
                 ],
               ),
+              _buildFilePreview(),
               const SizedBox(height: 20),
             ],
           ),

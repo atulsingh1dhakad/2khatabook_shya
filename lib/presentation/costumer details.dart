@@ -7,7 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../ledgerdetails.dart';
 import 'youwillgive.dart';
 import 'youwillget.dart';
-import 'Addcustomerscreen.dart'; // <-- Import for navigation
+import 'Addcustomerscreen.dart';
+import '../../main.dart';
 
 const double kFontVerySmall = 10;
 const double kFontSmall = 13;
@@ -29,7 +30,8 @@ class CustomerDetails extends StatefulWidget {
   State<CustomerDetails> createState() => _CustomerDetailsState();
 }
 
-class _CustomerDetailsState extends State<CustomerDetails> with RouteAware {
+class _CustomerDetailsState extends State<CustomerDetails>
+    with WidgetsBindingObserver, RouteAware {
   bool isLoading = true;
   bool isDeleting = false;
   String? errorMessage;
@@ -41,36 +43,36 @@ class _CustomerDetailsState extends State<CustomerDetails> with RouteAware {
   String accountRemark = '';
   bool dataChanged = false;
 
-  RouteObserver<ModalRoute<void>>? _routeObserver;
-
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _routeObserver = ModalRoute.of(context)?.navigator?.widget is Navigator
-        ? (ModalRoute.of(context)?.navigator?.widget as Navigator).observers
-        .whereType<RouteObserver<ModalRoute<void>>>()
-        .firstOrNull
-        : null;
-    _routeObserver?.subscribe(this, ModalRoute.of(context)!);
+  void initState() {
+    super.initState();
+    fetchAllData();
+    WidgetsBinding.instance.addObserver(this);
   }
 
   @override
   void dispose() {
-    _routeObserver?.unsubscribe(this);
-    Navigator.pop(context, dataChanged);
+    WidgetsBinding.instance.removeObserver(this);
+    routeObserver.unsubscribe(this);
     super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    routeObserver.subscribe(this, ModalRoute.of(context)!);
   }
 
   @override
   void didPopNext() {
     fetchAllData();
-    super.didPopNext();
   }
 
   @override
-  void initState() {
-    super.initState();
-    fetchAllData();
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      fetchAllData();
+    }
   }
 
   Future<String?> getAuthToken() async {
@@ -173,56 +175,6 @@ class _CustomerDetailsState extends State<CustomerDetails> with RouteAware {
     }
   }
 
-  Future<void> deleteLedgerEntry(String ledgerId) async {
-    setState(() {
-      isDeleting = true;
-    });
-    final authKey = await getAuthToken();
-    if (authKey == null) {
-      _showSnackBar("Authentication token missing. Please log in.");
-      setState(() {
-        isDeleting = false;
-      });
-      return;
-    }
-
-    final url =
-        "http://account.galaxyex.xyz/v1/user/api/setting/remove-ledger/$ledgerId";
-    try {
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {
-          "Authkey": authKey,
-          "Content-Type": "application/json",
-        },
-      );
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> jsonData = json.decode(response.body);
-        if (jsonData['meta']?['status'] == true) {
-          _showSnackBar("Entry deleted successfully");
-          await fetchLedger();
-          dataChanged = true;
-        } else {
-          _showSnackBar(jsonData['meta']?['msg'] ?? "Failed to delete entry");
-        }
-      } else {
-        _showSnackBar(
-            "Failed to delete entry, server error: ${response.statusCode}");
-      }
-    } catch (e) {
-      _showSnackBar("Error deleting entry: $e");
-    }
-    setState(() {
-      isDeleting = false;
-    });
-  }
-
-  void _showSnackBar(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg)),
-    );
-  }
-
   String formatDateTime(int milliseconds) {
     final dt = DateTime.fromMillisecondsSinceEpoch(milliseconds);
     final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
@@ -251,11 +203,9 @@ class _CustomerDetailsState extends State<CustomerDetails> with RouteAware {
     return months[(month - 1).clamp(0, 11)];
   }
 
-  /// Compute running balances for the ledger in reverse order (bottom-up)
   List<double> _reversedRunningBalances() {
     double sum = 0;
     List<double> balances = List.filled(ledger.length, 0);
-    // Traverse from end to start
     for (int i = ledger.length - 1; i >= 0; i--) {
       final credit =
           double.tryParse(ledger[i]['creditAmount']?.toString() ?? "0") ?? 0;
@@ -267,10 +217,8 @@ class _CustomerDetailsState extends State<CustomerDetails> with RouteAware {
     return balances;
   }
 
-  /// Responsive font size for amounts, so that number does not wrap or overflow
   double _getResponsiveFontSize(String value, double maxWidth,
       {double minFont = 10, double maxFont = 14.5}) {
-    // Estimate: Each character in a number needs about 0.58 * fontSize (roughly)
     for (double font = maxFont; font >= minFont; font -= 0.5) {
       final estWidth = value.length * font * 0.58;
       if (estWidth <= maxWidth) return font;
@@ -286,10 +234,15 @@ class _CustomerDetailsState extends State<CustomerDetails> with RouteAware {
     final remark = entry['remark'] ?? "";
     final ledgerId = entry['ledgerId']?.toString() ?? "";
 
-    // Show balance with minus sign if negative
     final String balanceText = (runningBalance < 0
         ? "-₹${runningBalance.abs().toStringAsFixed(2)}"
         : "₹${runningBalance.toStringAsFixed(2)}");
+
+    // Fetch the attachment url from the field "path" (single image/file per entry)
+    final String? imageUrl = entry['path'] as String?;
+    if (imageUrl != null && imageUrl.isNotEmpty) {
+      print("Ledger Attachment URL: $imageUrl");
+    }
 
     return GestureDetector(
       onTap: () async {
@@ -306,20 +259,22 @@ class _CustomerDetailsState extends State<CustomerDetails> with RouteAware {
         );
         if (result == true) {
           await fetchAllData();
-          dataChanged = true;
+          setState(() {
+            dataChanged = true;
+          });
         }
       },
       child: LayoutBuilder(
         builder: (context, constraints) {
-          // Calculate available width for debit/credit fields
-          final debitMaxWidth = 80.0 - 20.0;  // Padding fudge
+          final debitMaxWidth = 80.0 - 20.0;
           final creditMaxWidth = 80.0 - 20.0;
 
           final debitText = debit == 0 ? "" : "₹${debit.toStringAsFixed(2)}";
           final creditText = credit == 0 ? "" : "₹${credit.toStringAsFixed(2)}";
 
           final debitFontSize = _getResponsiveFontSize(debitText, debitMaxWidth);
-          final creditFontSize = _getResponsiveFontSize(creditText, creditMaxWidth);
+          final creditFontSize =
+          _getResponsiveFontSize(creditText, creditMaxWidth);
 
           return Container(
             margin: const EdgeInsets.symmetric(vertical: 7),
@@ -333,9 +288,9 @@ class _CustomerDetailsState extends State<CustomerDetails> with RouteAware {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Left: Date + Balance cream + Remark
+                  // Column for date, balance, remark, then attachment image
                   Expanded(
-                    flex: 6,
+                    flex: 7,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -379,9 +334,36 @@ class _CustomerDetailsState extends State<CustomerDetails> with RouteAware {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
+                        // Image below the text, not beside it
+                        if (imageUrl != null && imageUrl.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6.0),
+                            child: GestureDetector(
+                              onTap: () {
+                                showDialog(
+                                  context: context,
+                                  builder: (_) => Dialog(
+                                    child: Image.network(imageUrl, fit: BoxFit.contain),
+                                  ),
+                                );
+                              },
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(6),
+                                child: Image.network(
+                                  imageUrl,
+                                  width: 48,
+                                  height: 48,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (ctx, err, stack) =>
+                                  const Icon(Icons.broken_image, size: 32),
+                                ),
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ),
+                  // Credit/Debit Columns
                   Expanded(
                     flex: 7,
                     child: Row(
@@ -451,7 +433,9 @@ class _CustomerDetailsState extends State<CustomerDetails> with RouteAware {
     final value = await future;
     if (value == true) {
       await fetchAllData();
-      dataChanged = true;
+      setState(() {
+        dataChanged = true;
+      });
     }
   }
 
@@ -472,7 +456,7 @@ class _CustomerDetailsState extends State<CustomerDetails> with RouteAware {
 
     if (balance < 0) {
       label = "You Will Give";
-      amountTextColor = const Color(0xffc96868);
+      amountTextColor = Colors.red;
       displayAmount = -balance;
     } else if (balance > 0) {
       label = "You Will Get";
@@ -536,8 +520,10 @@ class _CustomerDetailsState extends State<CustomerDetails> with RouteAware {
                               ),
                             );
                             if (result == true) {
-                              fetchAllData();
-                              dataChanged = true;
+                              await fetchAllData();
+                              setState(() {
+                                dataChanged = true;
+                              });
                             }
                           },
                         ),
@@ -680,7 +666,7 @@ class _CustomerDetailsState extends State<CustomerDetails> with RouteAware {
                   itemCount: ledger.length,
                   itemBuilder: (context, index) {
                     final runningBalance =
-                    reversedRunningBalances[index];
+                    _reversedRunningBalances()[index];
                     return buildLedgerItem(
                       ledger[index],
                       runningBalance,

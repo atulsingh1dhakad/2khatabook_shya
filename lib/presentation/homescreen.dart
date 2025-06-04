@@ -3,6 +3,7 @@ import 'package:Calculator/presentation/Reportscreen.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../main.dart';
 import 'Addcompanyscreen.dart';
 import 'Addcustomerscreen.dart';
 import 'sidebarscreen.dart';
@@ -14,7 +15,17 @@ const double kFontLarge = 15;
 const double kFontXLarge = 18;
 
 enum FilterBy { all, youWillGet, youWillGive, settled }
-enum SortBy { mostRecent, highestAmount, byName, oldest, leastAmount }
+enum SortBy { none, mostRecent, highestAmount, byName, oldest, leastAmount }
+
+String toTitleCase(String text) {
+  if (text.isEmpty) return text;
+  return text
+      .split(' ')
+      .map((word) => word.isEmpty
+      ? word
+      : word[0].toUpperCase() + word.substring(1).toLowerCase())
+      .join(' ');
+}
 
 double toDouble(dynamic value) {
   if (value is int) return value.toDouble();
@@ -28,7 +39,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, RouteAware {
   String? selectedCompanyId;
   String? selectedCompanyName;
   List<dynamic> companies = [];
@@ -42,24 +53,56 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   String searchQuery = "";
 
   FilterBy _selectedFilter = FilterBy.all;
-  SortBy _selectedSort = SortBy.highestAmount;
+  SortBy _selectedSort = SortBy.none;
 
   AppLifecycleState? _lastLifecycleState;
+  bool _didSetInitialCompany = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    fetchCompanies();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    routeObserver.subscribe(this, ModalRoute.of(context)!);
+
+    if (!_didSetInitialCompany) {
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args != null && args is Map) {
+        selectedCompanyId = args['companyId']?.toString();
+        selectedCompanyName = args['companyName']?.toString();
+        _didSetInitialCompany = true;
+        setState(() {
+          isLoadingCompanies = false;
+        });
+        if (selectedCompanyId != null) {
+          fetchAccounts(selectedCompanyId!);
+        }
+      } else {
+        fetchCompanies();
+        _didSetInitialCompany = true;
+      }
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    routeObserver.unsubscribe(this);
     super.dispose();
   }
 
-  // Refresh page every time it comes in focus
+  @override
+  void didPopNext() {
+    fetchCompanies();
+    if (selectedCompanyId != null) {
+      fetchAccounts(selectedCompanyId!);
+    }
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
@@ -126,12 +169,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           String? defaultCompanyName;
 
           if (fetchedCompanies.isNotEmpty) {
-            final defaultCompany = fetchedCompanies.firstWhere(
-                  (c) => c['companyName'] == "My Company 1",
-              orElse: () => fetchedCompanies[0],
-            );
-            defaultCompanyId = defaultCompany['companyId'];
-            defaultCompanyName = defaultCompany['companyName'];
+            if (selectedCompanyId != null) {
+              final selectedCompany = fetchedCompanies.firstWhere(
+                    (c) => c['companyId'].toString() == selectedCompanyId,
+                orElse: () => fetchedCompanies[0],
+              );
+              defaultCompanyId = selectedCompany['companyId'];
+              defaultCompanyName = selectedCompany['companyName'];
+            } else {
+              final defaultCompany = fetchedCompanies.firstWhere(
+                    (c) => c['companyName'] == "My Company 1",
+                orElse: () => fetchedCompanies[0],
+              );
+              defaultCompanyId = defaultCompany['companyId'];
+              defaultCompanyName = defaultCompany['companyName'];
+            }
           }
 
           setState(() {
@@ -210,7 +262,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         if (data['meta']['status']) {
           setState(() {
             accounts = data['data'] ?? [];
-            // ONLY use backend values below.
             totalCredit = toDouble(data['overallTotals']?['totalCreditSum']);
             totalDebit = toDouble(data['overallTotals']?['totalDebitSum']);
             balance = toDouble(data['overallTotals']?['totalBalanceSum']);
@@ -326,7 +377,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                       backgroundColor: const Color(0xFF205781),
                                       child: Text(
                                         getInitials(
-                                          company['companyName'],
+                                          toTitleCase(company['companyName']),
                                           index,
                                         ),
                                         style: const TextStyle(
@@ -344,7 +395,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                         CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            company['companyName'],
+                                            toTitleCase(company['companyName']),
                                             style: TextStyle(
                                               color: isSelected
                                                   ? Colors.white
@@ -355,7 +406,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                           ),
                                           const SizedBox(height: 1),
                                           Text(
-                                            "4 Customers",
+                                            toTitleCase("4 Customers"),
                                             style: TextStyle(
                                               color: isSelected
                                                   ? Colors.white.withOpacity(0.8)
@@ -367,6 +418,38 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                         ],
                                       ),
                                     ),
+                                    Container(
+                                      height: 30,
+                                      width: 30,
+                                      decoration: BoxDecoration(
+                                        borderRadius: const BorderRadius.all(Radius.circular(50)),
+                                        color: isSelected ? Colors.white : const Color(0xFF205781),
+                                        border: Border.all(
+                                          color: isSelected ? Colors.grey.shade300 : Colors.transparent,
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: GestureDetector(
+                                        onTap: () async {
+                                          Navigator.pop(context);
+                                          await Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) => AddCompanyPage(
+                                                companyId: company['companyId'],
+                                                initialName: company['companyName'],
+                                              ),
+                                            ),
+                                          );
+                                          fetchCompanies();
+                                        },
+                                        child: Icon(
+                                          Icons.edit,
+                                          color: isSelected ? const Color(0xFF205781) : Colors.white,
+                                          size: 20,
+                                        ),
+                                      ),
+                                    )
                                   ],
                                 ),
                               ),
@@ -428,7 +511,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Color getBalanceColor() {
-    // If (totalCredit - totalDebit) is negative, color red, else as before
     if ((totalCredit - totalDebit) < 0) {
       return Colors.red;
     } else if (balance > 0) {
@@ -443,6 +525,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return diff < 0 ? Colors.red : const Color(0xFF2D486C);
   }
 
+  // ---- MAIN CHANGE: NONE = NO SORT ----
   List<dynamic> getFilteredAndSortedAccounts() {
     List<dynamic> filtered = accounts.where((acc) {
       final name = (acc['name'] ?? '').toString().toLowerCase();
@@ -465,14 +548,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }).toList();
 
     switch (_selectedSort) {
+      case SortBy.none:
+      // No sort applied!
+        break;
+      case SortBy.highestAmount:
+        filtered.sort((b, a) => (toDouble(a['total_Balance'])).compareTo(toDouble(b['total_Balance'])));
+        break;
       case SortBy.mostRecent:
         filtered.sort((a, b) =>
             ((b['lastUpdate'] ?? b['createdAt'] ?? '') ?? '')
                 .toString()
                 .compareTo(((a['lastUpdate'] ?? a['createdAt'] ?? '') ?? '').toString()));
-        break;
-      case SortBy.highestAmount:
-        filtered.sort((b, a) => (toDouble(a['total_Balance'])).compareTo(toDouble(b['total_Balance'])));
         break;
       case SortBy.byName:
         filtered.sort((a, b) =>
@@ -510,7 +596,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    "Filter by",
+                    toTitleCase("Filter by"),
                     style: TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 16,
@@ -522,17 +608,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   spacing: 10,
                   runSpacing: 10,
                   children: [
-                    _buildFilterChip("All", FilterBy.all, tempFilter, setModalState, (val) { tempFilter = val; }),
-                    _buildFilterChip("You will get", FilterBy.youWillGet, tempFilter, setModalState, (val) { tempFilter = val; }),
-                    _buildFilterChip("You will give", FilterBy.youWillGive, tempFilter, setModalState, (val) { tempFilter = val; }),
-                    _buildFilterChip("Settled", FilterBy.settled, tempFilter, setModalState, (val) { tempFilter = val; }),
+                    _buildFilterChip(toTitleCase("All"), FilterBy.all, tempFilter, setModalState, (val) { tempFilter = val; }),
+                    _buildFilterChip(toTitleCase("You will get"), FilterBy.youWillGet, tempFilter, setModalState, (val) { tempFilter = val; }),
+                    _buildFilterChip(toTitleCase("You will give"), FilterBy.youWillGive, tempFilter, setModalState, (val) { tempFilter = val; }),
+                    _buildFilterChip(toTitleCase("Settled"), FilterBy.settled, tempFilter, setModalState, (val) { tempFilter = val; }),
                   ],
                 ),
                 const SizedBox(height: 20),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    "Sort by",
+                    toTitleCase("Sort by"),
                     style: TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 16,
@@ -540,11 +626,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                 ),
                 const SizedBox(height: 8),
-                _buildSortRadio("Most Recent", SortBy.mostRecent, tempSort, setModalState, (val) { tempSort = val; }),
-                _buildSortRadio("Highest Amount", SortBy.highestAmount, tempSort, setModalState, (val) { tempSort = val; }),
-                _buildSortRadio("By Name (A-Z)", SortBy.byName, tempSort, setModalState, (val) { tempSort = val; }),
-                _buildSortRadio("Oldest", SortBy.oldest, tempSort, setModalState, (val) { tempSort = val; }),
-                _buildSortRadio("Least Amount", SortBy.leastAmount, tempSort, setModalState, (val) { tempSort = val; }),
+                _buildSortRadio("None (No Sorting)", SortBy.none, tempSort, setModalState, (val) { tempSort = val; }),
+                _buildSortRadio(toTitleCase("Most Recent"), SortBy.mostRecent, tempSort, setModalState, (val) { tempSort = val; }),
+                _buildSortRadio(toTitleCase("Highest Amount"), SortBy.highestAmount, tempSort, setModalState, (val) { tempSort = val; }),
+                _buildSortRadio(toTitleCase("By Name (A-Z)"), SortBy.byName, tempSort, setModalState, (val) { tempSort = val; }),
+                _buildSortRadio(toTitleCase("Oldest"), SortBy.oldest, tempSort, setModalState, (val) { tempSort = val; }),
+                _buildSortRadio(toTitleCase("Least Amount"), SortBy.leastAmount, tempSort, setModalState, (val) { tempSort = val; }),
                 const SizedBox(height: 22),
                 SizedBox(
                   width: double.infinity,
@@ -562,9 +649,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       });
                       Navigator.pop(context);
                     },
-                    child: const Text(
-                      "VIEW RESULT",
-                      style: TextStyle(
+                    child: Text(
+                      toTitleCase("View Result"),
+                      style: const TextStyle(
                           color: Colors.white, fontWeight: FontWeight.w600),
                     ),
                   ),
@@ -650,7 +737,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       const SizedBox(width: 10),
                       Flexible(
                         child: Text(
-                          selectedCompanyName ?? "Select Company",
+                          toTitleCase(selectedCompanyName ?? "Select Company"),
                           style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w700,
@@ -702,7 +789,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           children: [
                             Expanded(
                               child: InfoCard(
-                                title: "You Will Give",
+                                title: toTitleCase("You Will Give"),
                                 amount: "₹${formatCompactAmount(totalDebit)}",
                                 amountFontSize: 13,
                                 amountColor: Colors.red,
@@ -724,7 +811,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             SizedBox(width: 10),
                             Expanded(
                               child: InfoCard(
-                                title: "You Will Get",
+                                title: toTitleCase("You Will Get"),
                                 amount: "₹${formatCompactAmount(totalCredit)}",
                                 amountFontSize: 13,
                                 amountColor: const Color(0xFF2D486C),
@@ -746,7 +833,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             SizedBox(width: 10),
                             Expanded(
                               child: InfoCard(
-                                title: "Balance",
+                                title: toTitleCase("Balance"),
                                 amount: "₹${formatCompactAmount(balance)}",
                                 amountFontSize: 13,
                                 amountColor: getBalanceColor(),
@@ -765,19 +852,31 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         padding: const EdgeInsets.symmetric(vertical: 5.0),
                         child: GestureDetector(
                           onTap: () {
+                            if (selectedCompanyId == null) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(toTitleCase("Please select a company first!")),
+                                ),
+                              );
+                              return;
+                            }
                             Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (context) => ReportScreen()));
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ReportScreen(
+                                  companyId: selectedCompanyId,
+                                ),
+                              ),
+                            );
                           },
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
-                            children: const [
-                              Icon(Icons.file_copy,
+                            children: [
+                              const Icon(Icons.file_copy,
                                   size: 20, color: Colors.grey),
-                              SizedBox(width: 8),
-                              Text("Get Report",
-                                  style: TextStyle(fontSize: 12)),
+                              const SizedBox(width: 8),
+                              Text(toTitleCase("Get Report"),
+                                  style: const TextStyle(fontSize: 12)),
                             ],
                           ),
                         ),
@@ -788,19 +887,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               )
             ],
           ),
-          // --- SEARCH BAR + FILTER BUTTON ---
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
             child: Row(
               children: [
-                // Set both search bar and filter button to same height (49)
                 Expanded(
                   child: SizedBox(
                     height: 49,
                     child: TextField(
                       decoration: InputDecoration(
                         prefixIcon: const Icon(Icons.search),
-                        hintText: "Search Customer",
+                        hintText: toTitleCase("Search Customer"),
                         hintStyle: TextStyle(fontSize: kFontMedium),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
@@ -834,7 +931,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
                     ),
                     icon: const Icon(Icons.filter_alt_outlined, color: Color(0xFF205781)),
-                    label: const Text("Filters", style: TextStyle(color: Color(0xFF205781), fontWeight: FontWeight.w600)),
+                    label: Text(toTitleCase("Filters"), style: const TextStyle(color: Color(0xFF205781), fontWeight: FontWeight.w600)),
                     onPressed: _showFilterBottomSheet,
                   ),
                 ),
@@ -852,7 +949,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   Icon(Icons.person_outline, size: 70, color: Colors.grey.withOpacity(0.7)),
                   const SizedBox(height: 12),
                   Text(
-                    "No customer available",
+                    toTitleCase("No customer available"),
                     style: TextStyle(fontSize: kFontLarge, color: Colors.grey[700]),
                   ),
                 ],
@@ -886,7 +983,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     }
                   },
                   child: CustomerTile(
-                    name: name,
+                    name: toTitleCase(name),
                     amount: "₹${formatCompactAmount(totalBalance)}",
                     lastUpdate: lastUpdateStr,
                     amountColor: getCustomerAmountColor(totalCreditAmount, totalDebitAmount),
@@ -902,8 +999,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         child: GestureDetector(
           onTap: () {
             if (selectedCompanyId == null) {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                  content: Text("Please select a company first!")));
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text(toTitleCase("Please select a company first!"))));
               return;
             }
             Navigator.push(
@@ -927,12 +1024,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             alignment: Alignment.center,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: const [
-                Icon(Icons.person, color: Colors.white, size: 28),
-                SizedBox(width: 12),
+              children: [
+                const Icon(Icons.person, color: Colors.white, size: 28),
+                const SizedBox(width: 12),
                 Text(
-                  "Add Customer",
-                  style: TextStyle(
+                  toTitleCase("Add Customer"),
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: kFontLarge,
                     fontWeight: FontWeight.w600,
@@ -988,6 +1085,8 @@ class InfoCard extends StatelessWidget {
   }
 }
 
+// ...all your imports and code before CustomerTile stay the same...
+
 class CustomerTile extends StatelessWidget {
   final String name;
   final String amount;
@@ -1003,10 +1102,20 @@ class CustomerTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Set background color based on amountColor
+    Color backgroundColor;
+    if (amountColor == Colors.red) {
+      backgroundColor = const Color(0xFFFFEBEE); // light red shade
+    } else if (amountColor == const Color(0xFF2D486C)) {
+      backgroundColor = const Color(0xFFE3ECF6); // light blue shade
+    } else {
+      backgroundColor = const Color(0xCEDF9F4D).withOpacity(0.18); // default
+    }
+
     return Column(
       children: [
         ListTile(
-          title: Text(name, style: TextStyle(fontSize: kFontLarge)),
+          title: Text(name, style: const TextStyle(fontSize: kFontLarge)),
           subtitle: lastUpdate != null
               ? Padding(
             padding: const EdgeInsets.only(top: 2.0),
@@ -1019,7 +1128,7 @@ class CustomerTile extends StatelessWidget {
           trailing: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
             decoration: BoxDecoration(
-              color: const Color(0xCEDF9F4D).withOpacity(0.18),
+              color: backgroundColor,
               borderRadius: BorderRadius.circular(6),
             ),
             child: Text(

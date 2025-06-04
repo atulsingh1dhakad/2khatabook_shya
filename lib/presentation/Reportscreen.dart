@@ -4,7 +4,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 
 class ReportScreen extends StatefulWidget {
-  const ReportScreen({Key? key}) : super(key: key);
+  final String? companyId;
+  const ReportScreen({Key? key, this.companyId}) : super(key: key);
 
   @override
   State<ReportScreen> createState() => _ReportScreenState();
@@ -39,7 +40,9 @@ class _ReportScreenState extends State<ReportScreen> {
         return;
       }
 
-      final url = "http://account.galaxyex.xyz/v1/user/api/user/get-report";
+      // Append companyId if provided
+      final url =
+          "http://account.galaxyex.xyz/v1/user/api/user/get-report${widget.companyId != null ? '?companyId=${widget.companyId}' : ''}";
       final response = await http.get(
         Uri.parse(url),
         headers: {
@@ -78,6 +81,7 @@ class _ReportScreenState extends State<ReportScreen> {
   }
 
   String formatDateTime(int millis) {
+    if (millis == 0) return "-";
     final dt = DateTime.fromMillisecondsSinceEpoch(millis);
     String hour = (dt.hour % 12 == 0 ? 12 : dt.hour % 12).toString().padLeft(2, '0');
     String ampm = dt.hour < 12 ? 'AM' : 'PM';
@@ -92,24 +96,67 @@ class _ReportScreenState extends State<ReportScreen> {
     return months[(month - 1).clamp(0, 11)];
   }
 
+  // Helper: Capitalize each word
+  String toTitleCase(String text) {
+    if (text.isEmpty) return text;
+    return text
+        .split(' ')
+        .map((word) => word.isEmpty
+        ? word
+        : word[0].toUpperCase() + word.substring(1).toLowerCase())
+        .join(' ');
+  }
+
+  // Helper: Format amounts with K,L,Cr
+  String formatCompactAmount(num? amount) {
+    if (amount == null) return "-";
+    if (amount.abs() >= 10000000) {
+      return "${(amount / 10000000).toStringAsFixed(amount % 10000000 == 0 ? 0 : 2)}Cr";
+    } else if (amount.abs() >= 100000) {
+      return "${(amount / 100000).toStringAsFixed(amount % 100000 == 0 ? 0 : 2)}L";
+    } else if (amount.abs() >= 1000) {
+      return "${(amount / 1000).toStringAsFixed(amount % 1000 == 0 ? 0 : 1)}K";
+    } else {
+      return amount.toStringAsFixed(2);
+    }
+  }
+
+  /// Compute running balance as per CustomerDetails logic, for the report.
+  /// This will return a list of balances, one for each entry.
+  List<double?> runningBalances() {
+    double sum = 0;
+    List<double?> balances = List.filled(ledgerList.length, null);
+    for (int i = ledgerList.length - 1; i >= 0; i--) {
+      final credit = double.tryParse(ledgerList[i]['creditAmount']?.toString() ?? "0") ?? 0;
+      final debit = double.tryParse(ledgerList[i]['debitAmount']?.toString() ?? "0") ?? 0;
+      sum += credit - debit;
+      balances[i] = sum;
+    }
+    return balances;
+  }
+
   @override
   Widget build(BuildContext context) {
     final giveColor = Colors.red[700]!;
-    final getColor = Colors.blue[800]!;
-    final balanceColor = Colors.green[700]!;
+    final getColor = const Color(0xFF205781);
+
+    // Calculate balance color and value
+    double totalDebit = double.tryParse(totals['totalDebitAmount']?.toString() ?? "0") ?? 0;
+    double totalCredit = double.tryParse(totals['totalCreditAmount']?.toString() ?? "0") ?? 0;
+    double balance = double.tryParse(totals['totalBalance']?.toString() ?? "0") ?? 0;
+    final balanceColor = balance < 0 ? giveColor : getColor;
+
+    final runningBalancesList = runningBalances();
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Report',style: TextStyle(color: Colors.white),),
+        title: Text(
+          toTitleCase('report'),
+          style: const TextStyle(color: Colors.white),
+        ),
         backgroundColor: const Color(0xFF22587a),
         elevation: 0,
         leading: const BackButton(color: Colors.white),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings, color: Colors.white),
-            onPressed: () {},
-          ),
-        ],
       ),
       backgroundColor: const Color(0xFFF7F8FA),
       body: isLoading
@@ -131,57 +178,93 @@ class _ReportScreenState extends State<ReportScreen> {
           ),
           Expanded(
             child: ledgerList.isEmpty
-                ? const Center(child: Text("No records"))
+                ? Center(child: Text(toTitleCase("no records")))
                 : ListView.separated(
-              separatorBuilder: (_, __) => const Divider(height: 0),
+              separatorBuilder: (_, __) =>
+              const Divider(height: 0),
               itemCount: ledgerList.length,
               itemBuilder: (context, index) {
                 final entry = ledgerList[index];
-                final isCredit = double.tryParse(entry['creditAmount'] ?? "0.00")! > 0;
-                final isDebit = double.tryParse(entry['debitAmount'] ?? "0.00")! > 0;
+                final username = toTitleCase(entry['username'] ?? '');
+                final isCredit =
+                    double.tryParse(entry['creditAmount'] ?? "0.00")! > 0;
+                final isDebit =
+                    double.tryParse(entry['debitAmount'] ?? "0.00")! > 0;
                 final amount = isCredit
                     ? entry['creditAmount']
                     : entry['debitAmount'];
+                final amountNum =
+                    double.tryParse(amount?.toString() ?? "0") ?? 0;
+
                 final amountColor = isCredit ? getColor : giveColor;
-                final bal = entry['balance'] ?? "";
-                final balNum = double.tryParse(bal) ?? 0.0;
+
+                // Use computed running balance
+                final balNum = runningBalancesList[index];
+                final runningBalanceProper = balNum != null && balNum.isFinite;
+
+                final balText = runningBalanceProper
+                    ? "₹${formatCompactAmount(balNum!)}"
+                    : "-";
+                final balTextColor = !runningBalanceProper
+                    ? Colors.grey
+                    : (balNum! < 0 ? giveColor : getColor);
+
                 return Container(
                   color: index.isOdd
                       ? const Color(0xFFFFFCFC)
                       : Colors.white,
                   child: ListTile(
                     dense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 2),
                     title: Text(
-                      entry['username'] ?? '',
-                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                      username,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15),
                     ),
                     subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment:
+                      CrossAxisAlignment.start,
                       children: [
                         Text(
-                          formatDateTime(entry['ledgerDate'] ?? 0),
-                          style: const TextStyle(fontSize: 13, color: Colors.black54),
+                          formatDateTime(
+                              entry['ledgerDate'] ?? 0),
+                          style: const TextStyle(
+                              fontSize: 13,
+                              color: Colors.black54),
                         ),
-                        if ((entry['remark'] ?? '').toString().isNotEmpty)
+                        if ((entry['remark'] ?? '')
+                            .toString()
+                            .isNotEmpty)
                           Text(
-                            entry['remark'],
-                            style: const TextStyle(fontSize: 13, color: Colors.black87),
+                            toTitleCase(entry['remark']),
+                            style: const TextStyle(
+                                fontSize: 13,
+                                color: Colors.black87),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                         Text(
-                          '₹${_fmt(bal)}',
+                          balText,
                           style: TextStyle(
                             fontSize: 13,
-                            color: balNum < 0 ? giveColor : balanceColor,
+                            color: balTextColor,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
+                        if (!runningBalanceProper)
+                          const Text(
+                            "Running balance not proper",
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.orange,
+                                fontWeight: FontWeight.w500),
+                          ),
                       ],
                     ),
                     trailing: Text(
-                      "₹${_fmt(amount)}",
+                      "₹${formatCompactAmount(amountNum)}",
                       style: TextStyle(
                           color: amountColor,
                           fontWeight: FontWeight.bold,
@@ -205,6 +288,9 @@ class _ReportScreenState extends State<ReportScreen> {
     required Color getColor,
     required Color balanceColor,
   }) {
+    double? debitV = double.tryParse(debit?.toString() ?? "");
+    double? creditV = double.tryParse(credit?.toString() ?? "");
+    double? balanceV = double.tryParse(balance?.toString() ?? "");
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -224,10 +310,14 @@ class _ReportScreenState extends State<ReportScreen> {
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Column(
                 children: [
-                  const Text("You Will Give", style: TextStyle(fontSize: 13, color: Colors.black87)),
+                  Text(
+                    toTitleCase("you will give"),
+                    style: const TextStyle(
+                        fontSize: 13, color: Colors.black87),
+                  ),
                   const SizedBox(height: 2),
                   Text(
-                    "₹${_fmt(debit)}",
+                    "₹${formatCompactAmount(debitV ?? 0)}",
                     style: TextStyle(
                         color: giveColor,
                         fontWeight: FontWeight.w600,
@@ -244,15 +334,18 @@ class _ReportScreenState extends State<ReportScreen> {
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Column(
                 children: [
-                  const Text("You Will Get", style: TextStyle(fontSize: 13, color: Colors.black87)),
+                  Text(
+                    toTitleCase("you will get"),
+                    style: const TextStyle(
+                        fontSize: 13, color: Colors.black87),
+                  ),
                   const SizedBox(height: 2),
                   Text(
-                    "₹${_fmt(credit)}",
+                    "₹${formatCompactAmount(creditV ?? 0)}",
                     style: TextStyle(
                         color: getColor,
                         fontWeight: FontWeight.w600,
-                        fontSize: 13
-                    ),
+                        fontSize: 13),
                   ),
                 ],
               ),
@@ -264,15 +357,18 @@ class _ReportScreenState extends State<ReportScreen> {
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Column(
                 children: [
-                  const Text("Balance", style: TextStyle(fontSize: 13, color: Colors.black87)),
+                  Text(
+                    toTitleCase("balance"),
+                    style: const TextStyle(
+                        fontSize: 13, color: Colors.black87),
+                  ),
                   const SizedBox(height: 2),
                   Text(
-                    "₹${_fmt(balance)}",
+                    "₹${formatCompactAmount(balanceV ?? 0)}",
                     style: TextStyle(
                         color: balanceColor,
                         fontWeight: FontWeight.w600,
-                        fontSize: 13
-                    ),
+                        fontSize: 13),
                   ),
                 ],
               ),
@@ -290,20 +386,4 @@ class _ReportScreenState extends State<ReportScreen> {
       color: const Color(0xFFE1E1E1),
     );
   }
-
-  String _fmt(dynamic val) {
-    if (val == null) return "0.00";
-    if (val is num) return val.toStringAsFixed(2);
-    if (val is String) {
-      if (val.contains('.')) {
-        final parts = val.split('.');
-        if (parts[1].length == 1) return "${parts[0]}.${parts[1]}0";
-        if (parts[1].length == 0) return "${parts[0]}.00";
-        if (parts[1].length > 2) return "${parts[0]}.${parts[1].substring(0, 2)}";
-      }
-      return val;
-    }
-    return val.toString();
-  }
 }
-/*accountId*/

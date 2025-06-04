@@ -281,7 +281,6 @@ class _LedgerDetailsState extends State<LedgerDetails> {
     final avatar = widget.accountImageUrl.isEmpty
         ? const CircleAvatar(
       radius: 22,
-      backgroundImage: AssetImage('assets/images/default_user.png'),
     )
         : CircleAvatar(
       radius: 22,
@@ -293,12 +292,12 @@ class _LedgerDetailsState extends State<LedgerDetails> {
     double amountValue;
 
     if (youGot) {
-      amountLabel = "You got";
-      amountColor = const Color(0xFF198754);
+      amountLabel = "You will get";
+      amountColor = const Color(0xFF205781);
       amountValue = credit;
     } else {
-      amountLabel = "You gave";
-      amountColor = const Color(0xffd63384);
+      amountLabel = "You will give";
+      amountColor = Colors.red;
       amountValue = debit;
     }
 
@@ -306,6 +305,15 @@ class _LedgerDetailsState extends State<LedgerDetails> {
     final totalCredit = accountTotals['totalCreditAmount'] ?? "";
     final totalDebit = accountTotals['totalDebitAmount'] ?? "";
     final totalBalance = accountTotals['totalBalance'] ?? "";
+
+    final String? imageUrl = entry['path'] as String?;
+    if (imageUrl != null) {
+      print("Attachment URL: $imageUrl");
+    }
+
+    // Decide running balance color: blue if positive, red if negative/zero.
+    final runningBalanceColor =
+    runningBalance > 0 ? const Color(0xFF205781) : Colors.red;
 
     return Column(
       children: [
@@ -375,6 +383,40 @@ class _LedgerDetailsState extends State<LedgerDetails> {
                               ),
                             ],
                           ),
+                          if (imageUrl != null && imageUrl.isNotEmpty) ...[
+                            Divider(),
+                            const SizedBox(height: 18),
+                            const Text(
+                              "Photo Attachments",
+                              style: TextStyle(
+                                fontWeight: FontWeight.w500,
+                                fontSize: 12,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: GestureDetector(
+                                onTap: () {
+                                  showDialog(
+                                    context: context,
+                                    builder: (_) => Dialog(
+                                      child: Image.network(imageUrl, fit: BoxFit.contain),
+                                    ),
+                                  );
+                                },
+                                child: Image.network(
+                                  imageUrl,
+                                  width: 100,
+                                  height: 68,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (ctx, err, stack) =>
+                                  const Icon(Icons.broken_image, size: 40),
+                                ),
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 15),
                           const Divider(height: 1),
                           const SizedBox(height: 15),
@@ -388,7 +430,7 @@ class _LedgerDetailsState extends State<LedgerDetails> {
                               Text(
                                 "₹ $totalBalance",
                                 style: TextStyle(
-                                  color: runningBalance < 0 ? const Color(0xffd63384) : const Color(0xFF198754),
+                                  color: runningBalanceColor,
                                   fontWeight: FontWeight.w600,
                                   fontSize: 16,
                                 ),
@@ -402,7 +444,6 @@ class _LedgerDetailsState extends State<LedgerDetails> {
                           Center(
                             child: TextButton.icon(
                               onPressed: () async {
-                                // Go to YouWillGivePage or YouWillGetPage with editing context & ledgerId
                                 if (youGot) {
                                   final result = await Navigator.push(
                                     context,

@@ -1,3 +1,4 @@
+import 'package:Calculator/presentation/currency.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -134,7 +135,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   SidebarButton(
                     icon: Icons.attach_money,
                     label: "Currency Settings",
-                    onTap: () {},
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => CurrencySettings(),));
+                    },
                   ),
                   SidebarButton(
                     icon: Icons.backup_outlined,

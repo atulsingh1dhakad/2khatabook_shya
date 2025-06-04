@@ -137,7 +137,6 @@ class _StaffListPageState extends State<StaffListPage> {
                   ),
                   const SizedBox(height: 6),
                   infoRow("UserID", staff['loginId']),
-                  infoRow("Password", staff['password']),
                   infoRow("User Type", staff['userType']),
                   if (companyAccess.isNotEmpty)
                     Padding(
@@ -251,7 +250,6 @@ class _StaffListPageState extends State<StaffListPage> {
   Widget buildStaffItem(Map<String, dynamic> staff) {
     final name = staff['name'] ?? 'N/A';
     final loginId = staff['loginId'] ?? 'N/A';
-    final password = staff['password'] ?? '••••••';
 
     return InkWell(
       borderRadius: BorderRadius.circular(16),
@@ -294,7 +292,7 @@ class _StaffListPageState extends State<StaffListPage> {
               ),
             ),
             const SizedBox(width: 16),
-            // Name, UserID, Password
+            // Name, UserID,
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -316,13 +314,6 @@ class _StaffListPageState extends State<StaffListPage> {
                     ),
                   ),
                   const SizedBox(height: 2),
-                  Text(
-                    "Password: $password",
-                    style: const TextStyle(
-                      color: Colors.grey,
-                      fontSize: 14,
-                    ),
-                  ),
                 ],
               ),
             ),

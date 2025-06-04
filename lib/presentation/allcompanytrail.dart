@@ -1,12 +1,24 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'Reportscreen.dart'; // <-- Import if your ReportScreen is in the same folder, adjust path as needed
+import 'package:http/http.dart' as http;
+import 'Reportscreen.dart';
+import 'HomeScreen.dart';
 
 const Color kPrimaryBlue = Color(0xFF205781);
 const Color kGiveRed = Color(0xFFD32F2F);
 const Color kGetBlue = Color(0xFF205781);
+
+// Title case utility
+String toTitleCase(String text) {
+  if (text.isEmpty) return text;
+  return text
+      .split(' ')
+      .map((word) => word.isEmpty
+      ? word
+      : word[0].toUpperCase() + word.substring(1).toLowerCase())
+      .join(' ');
+}
 
 class AllCompanyTrialScreen extends StatefulWidget {
   const AllCompanyTrialScreen({super.key});
@@ -111,7 +123,6 @@ class _AllCompanyTrialScreenState extends State<AllCompanyTrialScreen> {
         (parts[1].isNotEmpty ? parts[1][0] : '');
   }
 
-  // For list tiles: color based on per-company credit - debit
   Color getListBalanceColor(num credit, num debit) {
     final diff = credit - debit;
     if (diff < 0) return kGiveRed;
@@ -119,7 +130,6 @@ class _AllCompanyTrialScreenState extends State<AllCompanyTrialScreen> {
     return Colors.grey[700]!;
   }
 
-  // For summary card: color based on overall credit - debit
   Color getCardBalanceColor() {
     final diff = totalCredit - totalDebit;
     if (diff < 0) return kGiveRed;
@@ -139,6 +149,21 @@ class _AllCompanyTrialScreenState extends State<AllCompanyTrialScreen> {
     }
   }
 
+  void _onCompanyTap(dynamic company) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const HomeScreen(),
+        settings: RouteSettings(
+          arguments: {
+            'companyId': company['companyId'],
+            'companyName': company['companyName'],
+          },
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -149,9 +174,9 @@ class _AllCompanyTrialScreenState extends State<AllCompanyTrialScreen> {
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: const Text(
-          "All company trial",
-          style: TextStyle(
+        title: Text(
+          toTitleCase("all company trial"),
+          style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w700,
           ),
@@ -183,19 +208,19 @@ class _AllCompanyTrialScreenState extends State<AllCompanyTrialScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
                         InfoCard(
-                          title: "You Will Give",
+                          title: toTitleCase("you will give"),
                           amount: "₹${formatCompactAmount(totalDebit)}",
                           amountFontSize: 12,
                           amountColor: kGiveRed,
                         ),
                         InfoCard(
-                          title: "You Will Get",
+                          title: toTitleCase("you will get"),
                           amount: "₹${formatCompactAmount(totalCredit)}",
                           amountFontSize: 12,
                           amountColor: kGetBlue,
                         ),
                         InfoCard(
-                          title: "Balance",
+                          title: toTitleCase("balance"),
                           amount: "₹${formatCompactAmount(totalBalance)}",
                           amountFontSize: 12,
                           amountColor: getCardBalanceColor(),
@@ -219,12 +244,11 @@ class _AllCompanyTrialScreenState extends State<AllCompanyTrialScreen> {
                       },
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
-                        children: const [
-                          Icon(Icons.file_copy,
-                              size: 20, color: Colors.grey),
-                          SizedBox(width: 8),
-                          Text("Get Report",
-                              style: TextStyle(fontSize: 12)),
+                        children: [
+                          const Icon(Icons.file_copy, size: 20, color: Colors.grey),
+                          const SizedBox(width: 8),
+                          Text(toTitleCase("get report"),
+                              style: const TextStyle(fontSize: 12)),
                         ],
                       ),
                     ),
@@ -243,7 +267,7 @@ class _AllCompanyTrialScreenState extends State<AllCompanyTrialScreen> {
                   Icon(Icons.business, size: 70, color: Colors.grey.withOpacity(0.7)),
                   const SizedBox(height: 12),
                   Text(
-                    "No company available",
+                    toTitleCase("no company available"),
                     style: TextStyle(fontSize: 18, color: Colors.grey[700]),
                   ),
                 ],
@@ -259,40 +283,43 @@ class _AllCompanyTrialScreenState extends State<AllCompanyTrialScreen> {
                 final balance = company['totalBalance'] ?? 0;
                 return Column(
                   children: [
-                    ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: kPrimaryBlue,
-                        child: Text(
-                          getInitials(name, index),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                            letterSpacing: 1.2,
+                    InkWell(
+                      onTap: () => _onCompanyTap(company),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: kPrimaryBlue,
+                          child: Text(
+                            getInitials(name, index),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w500,
+                              fontSize: 13,
+                              letterSpacing: 1.2,
+                            ),
                           ),
                         ),
-                      ),
-                      title: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              name,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
+                        title: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                toTitleCase(name),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              overflow: TextOverflow.ellipsis,
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            "₹${formatCompactAmount(balance)}",
-                            style: TextStyle(
-                              color: getListBalanceColor(credit, debit),
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
+                            const SizedBox(width: 12),
+                            Text(
+                              "₹${formatCompactAmount(balance)}",
+                              style: TextStyle(
+                                color: getListBalanceColor(credit, debit),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                     const Divider(),

@@ -196,22 +196,7 @@ class _EmailLoginScreenState extends State<EmailLoginScreen> {
                             style: TextStyle(color: Colors.white, fontSize: 14),
                           ),
                         ),
-                        const SizedBox(height: 20),
-                        Text.rich(
-                          TextSpan(
-                            text: 'Don\'t have an account? ',
-                            children: <TextSpan>[
-                              TextSpan(
-                                text: 'SignUp',
-                                style: const TextStyle(color: Colors.blue),
-                                recognizer: TapGestureRecognizer()
-                                  ..onTap = () {
-                                    // Implement navigation to SignUp screen
-                                  },
-                              ),
-                            ],
-                          ),
-                        ),
+
                       ],
                     ),
                   ),

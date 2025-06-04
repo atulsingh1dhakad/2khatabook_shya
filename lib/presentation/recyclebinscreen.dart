@@ -21,6 +21,7 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
   String? restoringLedgerId;
   List<dynamic> recycleLedger = [];
   String? error;
+  bool isDeletingAll = false;
 
   @override
   void initState() {
@@ -58,7 +59,7 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
         final data = json.decode(response.body);
         if (data["meta"]?["status"] == true) {
           List<dynamic> entries = data["data"] ?? [];
-          // Fetch customer names for entries that require it
+          // Fetch customer names for entries that require it, in parallel for speed
           List<dynamic> enriched = await _enrichWithCustomerNames(entries, authKey);
           setState(() {
             recycleLedger = enriched;
@@ -85,32 +86,36 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
   }
 
   Future<List<dynamic>> _enrichWithCustomerNames(List<dynamic> entries, String authKey) async {
-    // For each entry, fetch customerName if missing and accountId is present
-    List<dynamic> enriched = [];
+    // Parallel fetching of missing customer names for speed
+    List<Future<void>> futures = [];
     for (final entry in entries) {
       if ((entry['customerName'] == null || entry['customerName'].toString().trim().isEmpty) &&
           (entry['accountId'] != null && entry['accountId'].toString().isNotEmpty)) {
-        try {
-          final resp = await http.get(
-            Uri.parse("http://account.galaxyex.xyz/v1/user/api//account/get-account-details/${entry['accountId']}"),
-            headers: {
-              "Authkey": authKey,
-              "Content-Type": "application/json",
-            },
-          );
-          if (resp.statusCode == 200) {
-            final jsonData = json.decode(resp.body);
-            if (jsonData['meta'] != null && jsonData['meta']['status'] == true) {
-              entry['customerName'] = jsonData['data']?['name'] ?? "Customer";
-            }
-          }
-        } catch (_) {
-          // Ignore errors, fallback to default
+        futures.add(_fetchAndSetCustomerName(entry, authKey));
+      }
+    }
+    await Future.wait(futures);
+    return entries;
+  }
+
+  Future<void> _fetchAndSetCustomerName(Map<String, dynamic> entry, String authKey) async {
+    try {
+      final resp = await http.get(
+        Uri.parse("http://account.galaxyex.xyz/v1/user/api//account/get-account-details/${entry['accountId']}"),
+        headers: {
+          "Authkey": authKey,
+          "Content-Type": "application/json",
+        },
+      );
+      if (resp.statusCode == 200) {
+        final jsonData = json.decode(resp.body);
+        if (jsonData['meta'] != null && jsonData['meta']['status'] == true) {
+          entry['customerName'] = jsonData['data']?['name'] ?? "Customer";
         }
       }
-      enriched.add(entry);
+    } catch (_) {
+      // Ignore errors, fallback to default
     }
-    return enriched;
   }
 
   Future<void> restoreLedger(String ledgerId) async {
@@ -156,10 +161,60 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
   }
 
   Future<void> deleteLedger(String ledgerId) async {
-    // Implement the permanent delete logic if needed
     _showSnackBar("Permanent delete not implemented.");
     // After deletion, refresh the bin:
     // await fetchRecycleLedger();
+  }
+
+  Future<void> deleteAllLedgers() async {
+    if (recycleLedger.isEmpty) return;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Delete All Permanently"),
+        content: const Text("Are you sure you want to permanently delete all items in the recycle bin? This action cannot be undone."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text("Delete All", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    setState(() {
+      isDeletingAll = true;
+    });
+    final authKey = await getAuthToken();
+    if (authKey == null) {
+      _showSnackBar("Authentication token not found.");
+      setState(() {
+        isDeletingAll = false;
+      });
+      return;
+    }
+    try {
+      // Assuming a bulk delete API exists; if not, delete one by one
+      // Here, we just delete each ledger one by one for demonstration
+      for (final entry in recycleLedger) {
+        final ledgerId = entry['ledgerId']?.toString() ?? entry['_id']?.toString() ?? "";
+        if (ledgerId.isNotEmpty) {
+          // Implement actual delete call here when API is available
+        }
+      }
+      _showSnackBar("Permanent delete of all items is not implemented (demo).");
+      // After deletion, refresh the bin:
+      // await fetchRecycleLedger();
+    } catch (e) {
+      _showSnackBar("Error: $e");
+    }
+    setState(() {
+      isDeletingAll = false;
+    });
   }
 
   void _showSnackBar(String msg) {
@@ -192,13 +247,12 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
     return CircleAvatar(
       radius: 22,
       backgroundColor: const Color(0xFFE6ECF5),
-      child: const Icon(Icons.sticky_note_2_outlined, color: Color(0xFF2D486C), size: 28),
+      child: const Icon(Icons.person_outlined, color: Color(0xFF2D486C), size: 28),
     );
   }
 
   // Format ₹ 432,750 style
   String formatAmount(num amt) {
-    // Use Indian numbering format with commas
     String s = amt.abs().toStringAsFixed(0);
     if (s.length <= 3) return amt >= 0 ? "₹ $s" : "-₹ $s";
     String last3 = s.substring(s.length - 3);
@@ -207,11 +261,9 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
     return (amt < 0 ? "-₹ " : "₹ ") + rest + (rest.isNotEmpty ? "," : "") + last3;
   }
 
-  // Returns green for get, red for give
-  Color amountColor(num amt) => amt >= 0 ? const Color(0xFF198754) : const Color(0xffc96868);
+  Color amountColor(num amt) => amt >= 0 ? const Color(0xFF205781) : const Color(0xFFFF0000);
 
-  // Returns "You got"/"You gave" and color
-  String youLabel(num amt) => amt >= 0 ? "You got" : "You gave";
+  String youLabel(num amt) => amt >= 0 ? "You will get" : "You will give";
 
   Widget buildLedgerItem(Map<String, dynamic> entry) {
     final credit = double.tryParse(entry['creditAmount']?.toString() ?? "0") ?? 0;
@@ -227,8 +279,10 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
 
     return Card(
       color: Colors.white,
-      margin: const EdgeInsets.only(bottom: 6, top: 6),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      margin: const EdgeInsets.only(bottom: 5, top: 5, left: 5, right: 5),
+      elevation: 6,
+      shadowColor: Colors.black.withOpacity(0.20),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
         child: Column(
@@ -274,7 +328,6 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
                     ],
                   ),
                 ),
-                // Amount and "You got"/"You gave"
                 Padding(
                   padding: const EdgeInsets.only(left: 12, right: 2, top: 6),
                   child: Column(
@@ -284,7 +337,7 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
                         formatAmount(amount),
                         style: TextStyle(
                           fontWeight: FontWeight.w600,
-                          fontSize: 17,
+                          fontSize: 15,
                           color: amountColor(amount),
                         ),
                       ),
@@ -293,7 +346,7 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
                         style: TextStyle(
                           color: amountColor(amount),
                           fontWeight: FontWeight.w500,
-                          fontSize: 12,
+                          fontSize: 11,
                         ),
                       )
                     ],
@@ -301,9 +354,8 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 6),
+
             Divider(),
-            const SizedBox(height: 4),
             Row(
               children: [
                 Expanded(
@@ -336,11 +388,10 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
                         await restoreLedger(ledgerId);
                       }
                     },
-                    icon: const Icon(Icons.restore_outlined, size: 20),
+                    icon: const Icon(Icons.settings_backup_restore_rounded, size: 20),
                     label: const Text("Undo"),
                   ),
                 ),
-
                 Expanded(
                   child: TextButton.icon(
                     style: TextButton.styleFrom(
@@ -371,7 +422,7 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
                         await deleteLedger(ledgerId);
                       }
                     },
-                    icon: const Icon(Icons.delete_outline, size: 18),
+                    icon: const Icon(Icons.delete, size: 18),
                     label: const Text("Delete"),
                   ),
                 ),
@@ -424,13 +475,54 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
           ),
         )
             : ListView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
           itemCount: recycleLedger.length,
           itemBuilder: (context, idx) {
             return buildLedgerItem(recycleLedger[idx]);
           },
         ),
       ),
+      bottomNavigationBar: recycleLedger.isNotEmpty
+          ? SafeArea(
+        child: Container(
+          color: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: OutlinedButton.icon(
+            icon: const Icon(Icons.delete_forever, color: Colors.red),
+            label: isDeletingAll
+                ? const SizedBox(
+              width: 25,
+              height: 25,
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.red),
+                strokeWidth: 2,
+              ),
+            )
+                : const Text(
+              "Delete All Permanently",
+              style: TextStyle(
+                color: Colors.red,
+                fontSize: kFontLarge,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            style: OutlinedButton.styleFrom(
+              backgroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(5),
+              ),
+              side: const BorderSide(color: Colors.red, width: 1.5),
+            ),
+            onPressed: isDeletingAll
+                ? null
+                : () {
+              deleteAllLedgers();
+            },
+          ),
+        ),
+      )
+          : null,
     );
   }
 }
