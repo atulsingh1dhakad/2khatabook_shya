@@ -455,7 +455,7 @@ class _CustomerDetailsState extends State<CustomerDetails>
     double displayAmount;
 
     if (balance < 0) {
-      label = "You Will Give";
+      label = "You Will Give ";
       amountTextColor = Colors.red;
       displayAmount = -balance;
     } else if (balance > 0) {
