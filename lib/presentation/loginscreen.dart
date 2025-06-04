@@ -104,101 +104,96 @@ class _EmailLoginScreenState extends State<EmailLoginScreen> {
                 ),
               ),
               Center(
-                child: Card(
-                  elevation: 16,
-                  shadowColor: Colors.black,
-                  color: Colors.white,
-                  child: Padding(
-                    padding: const EdgeInsets.all(15.0),
-                    child: Column(
-                      children: [
-                        const Text(
+                child: Padding(
+                  padding: const EdgeInsets.all(15.0),
+                  child: Column(
+                    children: [
+                      const Text(
+                        'Login',
+                        style: TextStyle(
+                          fontFamily: 'OpenSans',
+                          fontSize: 20,
+                          fontWeight: FontWeight.normal,
+                          color: Color(0xff1A1A2E),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'For your Protection, Please Verify Your Identity',
+                        style: GoogleFonts.openSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w300,
+                          color: const Color(0xff1A1A2E),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      TextField(
+                        controller: _loginIdController,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: InputDecoration(
+                          fillColor: Colors.white70,
+                          filled: true,
+                          prefixIcon: const Icon(Icons.mail, size: 20),
+                          hintText: 'Login ID',
+                          hintStyle: const TextStyle(fontWeight: FontWeight.w400),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: Colors.grey),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: const BorderSide(color: Color(0xff2D486C)),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      TextField(
+                        controller: _passwordController,
+                        keyboardType: TextInputType.text,
+                        obscureText: true,
+                        decoration: InputDecoration(
+                          fillColor: Colors.white70,
+                          filled: true,
+                          prefixIcon: const Icon(Icons.lock, size: 20),
+                          hintText: 'Password',
+                          hintStyle: const TextStyle(fontWeight: FontWeight.w400),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: Colors.grey),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: const BorderSide(color: Color(0xff2D486C)),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 30),
+                      ElevatedButton(
+                        onPressed: _isLoading
+                            ? null
+                            : () => _sendLoginRequest(
+                          _loginIdController.text.trim(),
+                          _passwordController.text.trim(),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size(320, 54),
+                          shadowColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          backgroundColor: const Color(0xff0A66C2),
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          textStyle: const TextStyle(fontSize: 20),
+                        ),
+                        child: _isLoading
+                            ? const CircularProgressIndicator(color: Colors.white)
+                            : const Text(
                           'Login',
-                          style: TextStyle(
-                            fontFamily: 'OpenSans',
-                            fontSize: 20,
-                            fontWeight: FontWeight.normal,
-                            color: Color(0xff1A1A2E),
-                          ),
+                          style: TextStyle(color: Colors.white, fontSize: 14),
                         ),
-                        const SizedBox(height: 10),
-                        Text(
-                          'For your Protection, Please Verify Your Identity',
-                          style: GoogleFonts.openSans(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w300,
-                            color: const Color(0xff1A1A2E),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        TextField(
-                          controller: _loginIdController,
-                          keyboardType: TextInputType.emailAddress,
-                          decoration: InputDecoration(
-                            fillColor: Colors.white70,
-                            filled: true,
-                            prefixIcon: const Icon(Icons.mail, size: 20),
-                            hintText: 'Login ID',
-                            hintStyle: const TextStyle(fontWeight: FontWeight.w400),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: const BorderSide(color: Colors.grey),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderSide: const BorderSide(color: Color(0xff2D486C)),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        TextField(
-                          controller: _passwordController,
-                          keyboardType: TextInputType.text,
-                          obscureText: true,
-                          decoration: InputDecoration(
-                            fillColor: Colors.white70,
-                            filled: true,
-                            prefixIcon: const Icon(Icons.lock, size: 20),
-                            hintText: 'Password',
-                            hintStyle: const TextStyle(fontWeight: FontWeight.w400),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: const BorderSide(color: Colors.grey),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderSide: const BorderSide(color: Color(0xff2D486C)),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 30),
-                        ElevatedButton(
-                          onPressed: _isLoading
-                              ? null
-                              : () => _sendLoginRequest(
-                            _loginIdController.text.trim(),
-                            _passwordController.text.trim(),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            minimumSize: const Size(320, 54),
-                            shadowColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            backgroundColor: const Color(0xff0A66C2),
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            textStyle: const TextStyle(fontSize: 20),
-                          ),
-                          child: _isLoading
-                              ? const CircularProgressIndicator(color: Colors.white)
-                              : const Text(
-                            'Login',
-                            style: TextStyle(color: Colors.white, fontSize: 14),
-                          ),
-                        ),
+                      ),
 
-                      ],
-                    ),
+                    ],
                   ),
                 ),
               ),

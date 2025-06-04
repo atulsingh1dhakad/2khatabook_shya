@@ -25,6 +25,13 @@ class _CurrencySettingsState extends State<CurrencySettings> {
   void initState() {
     super.initState();
     _fetchCurrencySetting();
+    _currencyController.addListener(_onInputChanged);
+  }
+
+  @override
+  void dispose() {
+    _currencyController.dispose();
+    super.dispose();
   }
 
   Future<String?> _getAuthToken() async {
@@ -84,6 +91,12 @@ class _CurrencySettingsState extends State<CurrencySettings> {
     setState(() => _isLoading = false);
   }
 
+  void _onInputChanged() {
+    setState(() {
+      _errorMsg = null;
+    });
+  }
+
   Future<void> _saveCurrencySetting() async {
     setState(() {
       _errorMsg = null;
@@ -91,9 +104,9 @@ class _CurrencySettingsState extends State<CurrencySettings> {
 
     final enteredValue = _currencyController.text.trim();
     final parsedValue = double.tryParse(enteredValue);
-    if (enteredValue.isEmpty || parsedValue == null) {
+    if (enteredValue.isEmpty || parsedValue == null || parsedValue <= 0) {
       setState(() {
-        _errorMsg = "Please enter a valid value";
+        _errorMsg = "Please enter a valid value greater than 0";
       });
       return;
     }
@@ -149,6 +162,15 @@ class _CurrencySettingsState extends State<CurrencySettings> {
     }
   }
 
+  bool get _isInputValid {
+    final enteredValue = _currencyController.text.trim();
+    final parsedValue = double.tryParse(enteredValue);
+    return !_isLoading &&
+        enteredValue.isNotEmpty &&
+        parsedValue != null &&
+        parsedValue > 0;
+  }
+
   Widget _buildCurrentSettingCard() {
     if (_currentSetting == null) return const SizedBox(height: 20);
     return Padding(
@@ -194,12 +216,12 @@ class _CurrencySettingsState extends State<CurrencySettings> {
           height: 48,
           child: ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: kPrimaryBlue,
+              backgroundColor: _isInputValid ? kPrimaryBlue : kPrimaryBlue.withOpacity(0.4),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(kButtonRadius),
               ),
             ),
-            onPressed: _isLoading ? null : _saveCurrencySetting,
+            onPressed: _isInputValid ? _saveCurrencySetting : null,
             child: _isLoading
                 ? const SizedBox(
               width: 18,
