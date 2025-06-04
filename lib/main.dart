@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'auth_interceptor.dart';
 import 'presentation/loginscreen.dart';
 import 'security/calciscreen.dart';
+import 'presentation/homescreen.dart';
 
 // 1. Create a global navigator key
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -75,16 +76,17 @@ class _EntryGateState extends State<EntryGate> {
           return;
         }
       }
+
+      // At this point, the user is authenticated and the token is valid.
+
       bool? isSecurityActive = await _checkSecurityActive(token);
 
-      // Only go to calculator if API returns exactly true for isActive
-      // All other cases (false, null, error) go to login
+      // If API call fails, treat as security OFF (let user in normally).
       if (isSecurityActive == true) {
         _pushReplace(const CustomCalculatorScreen());
       } else {
-        await prefs.remove('auth_token');
-        await prefs.remove('token_expiry');
-        _pushReplace(const EmailLoginScreen());
+        // security is OFF or error: go to homescreen directly
+        _pushReplace(const HomeScreen());
       }
     } else {
       _pushReplace(const EmailLoginScreen());
@@ -106,11 +108,11 @@ class _EntryGateState extends State<EntryGate> {
           return data["data"]["isActive"] == true;
         }
       }
-      // Any non-200 or unexpected response is an error
-      return null;
+      // Any non-200 or unexpected response is an error (treat as security OFF)
+      return false;
     } catch (e) {
-      // Any network/server error is treated as failure
-      return null;
+      // Any network/server error is treated as security OFF
+      return false;
     }
   }
 
