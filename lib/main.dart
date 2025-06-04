@@ -9,13 +9,10 @@ import 'presentation/loginscreen.dart';
 import 'security/calciscreen.dart';
 import 'presentation/homescreen.dart';
 
-// 1. Create a global navigator key
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
-// 2. Create a global RouteObserver for navigation events
 final RouteObserver<ModalRoute<void>> routeObserver = RouteObserver<ModalRoute<void>>();
 
-// 3. Create a global http client using http_interceptor
 final http.Client httpClient = InterceptedClient.build(
   interceptors: [AuthInterceptor(navigatorKey)],
 );
@@ -76,8 +73,6 @@ class _EntryGateState extends State<EntryGate> {
           return;
         }
       }
-
-      // At this point, the user is authenticated and the token is valid.
 
       bool? isSecurityActive = await _checkSecurityActive(token);
 
