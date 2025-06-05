@@ -87,7 +87,6 @@ class _EntryGateState extends State<EntryGate> {
       _pushReplace(const EmailLoginScreen());
     }
   }
-
   /// Returns:
   ///   - true  : if security is active
   ///   - false : if security is not active
