@@ -967,7 +967,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
                 final companyId = selectedCompanyId;
                 final lastUpdateStr = getFormattedLastUpdate(acc);
 
-
                 return InkWell(
                   onTap: () async {
                     final result = await Navigator.push(
