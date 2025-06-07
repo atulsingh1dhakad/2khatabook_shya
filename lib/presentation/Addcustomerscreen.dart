@@ -380,6 +380,7 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
     );
   }
 
+
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.isEdit;
