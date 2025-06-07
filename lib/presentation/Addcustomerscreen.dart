@@ -29,11 +29,10 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
   late final TextEditingController _remarkController;
   bool _isLoading = false;
 
-  // Staff related state
   bool _isStaffLoading = true;
   String? _staffError;
   List<dynamic> _staffList = [];
-  Map<int, bool> _staffVisibility = {}; // staff index to visibility state
+  Map<int, bool> _staffVisibility = {};
   String _staffSearchQuery = "";
   final TextEditingController _staffSearchController = TextEditingController();
 
@@ -70,6 +69,16 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
       _staffList = [];
     });
 
+    // If companyId is null or empty, do not show any staff
+    if (widget.companyId.isEmpty) {
+      setState(() {
+        _isStaffLoading = false;
+        _staffList = [];
+        _staffVisibility = {};
+      });
+      return;
+    }
+
     final authKey = await _getAuthToken();
     if (authKey == null) {
       setState(() {
@@ -79,43 +88,87 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
       return;
     }
 
-    final url = "http://account.galaxyex.xyz/v1/user/api/user/get-staff";
+    // 1. Fetch staff list
+    final staffUrl = "http://account.galaxyex.xyz/v1/user/api/user/get-staff";
+    List<dynamic> staffData = [];
     try {
-      final response = await http.get(Uri.parse(url), headers: {
+      final staffResponse = await http.get(Uri.parse(staffUrl), headers: {
         "Authkey": authKey,
         "Content-Type": "application/json",
       });
 
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> jsonData = json.decode(response.body);
-        if (jsonData['meta'] != null && jsonData['meta']['status'] == true) {
-          final data = jsonData['data'] ?? [];
-          setState(() {
-            _staffList = data;
-            // Set all staff to show by default (true)
-            _staffVisibility = {
-              for (int i = 0; i < data.length; i++) i: true
-            };
-            _isStaffLoading = false;
-          });
+      if (staffResponse.statusCode == 200) {
+        final Map<String, dynamic> staffJson = json.decode(staffResponse.body);
+        if (staffJson['meta'] != null && staffJson['meta']['status'] == true) {
+          staffData = staffJson['data'] ?? [];
         } else {
           setState(() {
-            _staffError = jsonData['meta']?['msg'] ?? "Failed to fetch staff list";
+            _staffError = staffJson['meta']?['msg'] ?? "Failed to fetch staff list";
             _isStaffLoading = false;
           });
+          return;
         }
       } else {
         setState(() {
-          _staffError = "Server error: ${response.statusCode}";
+          _staffError = "Server error: ${staffResponse.statusCode}";
           _isStaffLoading = false;
         });
+        return;
       }
     } catch (e) {
       setState(() {
         _staffError = "Error: $e";
         _isStaffLoading = false;
       });
+      return;
     }
+
+    // 2. Filter staff: only those with VIEW or EDIT (or VIEW-EDIT) access to this company
+    final filteredStaff = staffData.where((staff) {
+      final accessList = staff['companyAccess'] as List<dynamic>? ?? [];
+      return accessList.any((access) {
+        final action = (access['action']?.toString() ?? '').toUpperCase();
+        return access['companyId'] == widget.companyId &&
+            (action == 'VIEW' || action == 'EDIT' || action == 'VIEW-EDIT');
+      });
+    }).toList();
+
+    // 3. Fetch isActive for each staff (editing)
+    Map<String, bool> staffActiveMap = {};
+    if (widget.isEdit && widget.accountId != null && widget.accountId!.isNotEmpty) {
+      final accountDetailsUrl =
+          "http://account.galaxyex.xyz/v1/user/api//account/get-account-details/${widget.accountId}";
+      try {
+        final accountDetailsResponse = await http.get(Uri.parse(accountDetailsUrl), headers: {
+          "Authkey": authKey,
+          "Content-Type": "application/json",
+        });
+        if (accountDetailsResponse.statusCode == 200) {
+          final Map<String, dynamic> accountDetailsJson = json.decode(accountDetailsResponse.body);
+          final List<dynamic> isDisableList = accountDetailsJson['data']?['isDisable'] ?? [];
+          for (final entry in isDisableList) {
+            if (entry['userId'] != null && entry['isActive'] != null) {
+              staffActiveMap[entry['userId'].toString()] = entry['isActive'] == true;
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    setState(() {
+      _staffList = filteredStaff;
+      _staffVisibility = {};
+      for (int i = 0; i < filteredStaff.length; i++) {
+        final staff = filteredStaff[i];
+        final userId = (staff['userId'] ?? staff['_id'] ?? staff['id']).toString();
+        if (widget.isEdit) {
+          _staffVisibility[i] = staffActiveMap.containsKey(userId) ? staffActiveMap[userId]! : false;
+        } else {
+          _staffVisibility[i] = true;
+        }
+      }
+      _isStaffLoading = false;
+    });
   }
 
   Future<void> _submitCustomer() async {
@@ -127,19 +180,35 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
     final prefs = await SharedPreferences.getInstance();
     final authKey = prefs.getString("auth_token");
 
+    // Build isDisable array from staff list and visibility map
+    final isDisable = _staffList.asMap().entries.map((entry) {
+      final staff = entry.value;
+      final index = entry.key;
+      return {
+        "userId": (staff['userId'] ?? staff['_id'] ?? staff['id']).toString(),
+        "isActive": _staffVisibility[index] ?? false,
+      };
+    }).toList();
+
     final isEdit = widget.isEdit;
-    final url = Uri.parse('http://account.galaxyex.xyz/v1/user/api/account/add-account');
+    final url = Uri.parse(
+      isEdit
+          ? 'http://account.galaxyex.xyz/v1/user/api/account/update-account'
+          : 'http://account.galaxyex.xyz/v1/user/api/account/add-account',
+    );
     final body = isEdit
         ? {
       'customerName': _nameController.text,
       'companyId': widget.companyId,
       'remark': _remarkController.text,
       'accountId': widget.accountId,
+      'isDisable': isDisable,
     }
         : {
       'customerName': _nameController.text,
       'companyId': widget.companyId,
       'remark': _remarkController.text,
+      'isDisable': isDisable,
     };
 
     try {
@@ -199,7 +268,6 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
         child: Center(child: Text("No staff available.")),
       );
     }
-    // Filter staff by search query
     final filteredStaff = _staffSearchQuery.isEmpty
         ? _staffList
         : _staffList.where((staff) {
@@ -242,12 +310,11 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
         )
             : Column(
           children: List.generate(filteredStaff.length, (filteredIndex) {
-            // Find the index in the original list to get correct toggle state
             final staff = filteredStaff[filteredIndex];
             final index = _staffList.indexOf(staff);
             final name = staff['name'] ?? "N/A";
             final loginId = staff['loginId'] ?? "N/A";
-            final show = _staffVisibility[index] ?? true;
+            final show = _staffVisibility[index] ?? false;
             return Container(
               margin: const EdgeInsets.only(bottom: 6),
               padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
@@ -280,7 +347,6 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
                       ],
                     ),
                   ),
-                  // Toggle switch
                   Row(
                     children: [
                       Text(
@@ -354,7 +420,7 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
                   maxLines: null,
                   expands: true,
                 ),
-              ),//..
+              ),
               _buildStaffListSection(),
               const SizedBox(height: 20),
             ],

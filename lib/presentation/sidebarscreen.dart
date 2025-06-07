@@ -1,3 +1,4 @@
+import 'package:Calculator/Backup/backupscreen.dart';
 import 'package:Calculator/presentation/currency.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -6,6 +7,7 @@ import '../security/secureform.dart';
 import '../testing/fetchstaff.dart';
 import 'allcompanytrail.dart';
 import 'changepass.dart';
+import 'languagescreen.dart';
 import 'recyclebinscreen.dart';
 import 'loginscreen.dart';
 
@@ -130,7 +132,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   SidebarButton(
                     icon: Icons.language,
                     label: "Change Language",
-                    onTap: () {},
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => languagescreen(),))          ;          },
                   ),
                   SidebarButton(
                     icon: Icons.attach_money,
@@ -142,7 +145,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   SidebarButton(
                     icon: Icons.backup_outlined,
                     label: "Backup & Delete",
-                    onTap: () {},
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => BackupScreen(),));
+                    },
                   ),
                   SidebarButton(
                     icon: Icons.security,

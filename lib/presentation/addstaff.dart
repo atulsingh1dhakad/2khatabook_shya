@@ -140,7 +140,6 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
     List<Map<String, String>> companyAccess = [];
     selectedCompanies.forEach((id, isSelected) {
       if (isSelected && (companyActions[id] != null)) {
-        // send action value in UPPERCASE (VIEW/VIEW-EDIT)
         companyAccess.add({
           "companyId": id,
           "action": companyActions[id]!.toUpperCase(),
@@ -172,8 +171,10 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
       return;
     }
 
-    final String url = "http://account.galaxyex.xyz/v1/user/api/user/add-user";
-    // Always use POST, even for editing (backend logic handles update if userIdToUpdate is present)
+    final String url = isEditMode
+        ? "http://account.galaxyex.xyz/v1/user/api/user/update-user"
+        : "http://account.galaxyex.xyz/v1/user/api/user/add-user";
+
     final response = await http.post(
       Uri.parse(url),
       headers: {

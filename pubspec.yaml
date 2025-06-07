@@ -44,6 +44,9 @@ dependencies:
   http_interceptor: ^2.0.0
   package_info_plus: ^8.3.0
   file_picker: ^10.1.9
+  google_sign_in: ^6.3.0
+  googleapis: ^14.0.0
+  googleapis_auth: ^2.0.0
 
 dev_dependencies:
   flutter_test:
