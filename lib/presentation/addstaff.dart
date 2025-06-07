@@ -135,6 +135,7 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
     });
   }
 
+
   Future<void> addOrUpdateStaff() async {
     if (!_formKey.currentState!.validate()) return;
     List<Map<String, String>> companyAccess = [];
@@ -204,6 +205,7 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
       );
     }
   }
+
 
   Widget _companyActionDropdown(String id) {
     return SizedBox(
