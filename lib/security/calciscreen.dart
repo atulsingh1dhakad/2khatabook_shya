@@ -6,7 +6,6 @@ import 'package:math_expressions/math_expressions.dart';
 
 import '../presentation/homescreen.dart';
 
-
 // Custom calculator button colors
 const Color kBgColor = Colors.black;
 const Color kButtonCircle = Color(0xFF18120C);
@@ -80,6 +79,25 @@ class _CustomCalculatorScreenState extends State<CustomCalculatorScreen> {
         } catch (e) {
           _result = 'Err';
         }
+      } else if (value == '+/-') {
+        // Toggle sign of the last number
+        final regex = RegExp(r'([0-9.]+)$');
+        final match = regex.firstMatch(_expression);
+        if (match != null) {
+          final lastNumber = match.group(1)!;
+          if (_expression.endsWith(lastNumber)) {
+            if (lastNumber.startsWith('-')) {
+              _expression =
+                  _expression.substring(0, _expression.length - lastNumber.length) +
+                      lastNumber.substring(1);
+            } else {
+              _expression =
+                  _expression.substring(0, _expression.length - lastNumber.length) +
+                      '-' +
+                      lastNumber;
+            }
+          }
+        }
       } else {
         if (_shouldClear) {
           _expression = '';
@@ -98,13 +116,47 @@ class _CustomCalculatorScreenState extends State<CustomCalculatorScreen> {
         MaterialPageRoute(builder: (_) => const HomeScreen()),
       );
     }
-    // For debugging, uncomment:
-    // print('Result: $result, Parsed: $resultNum, Pin: $_securityPin');
   }
+
+  // --- PERCENT FIX START ---
+  String _handlePercent(String input) {
+    String out = input;
+    // Replace e.g. 100-25% with 100-(100*25/100)
+    out = out.replaceAllMapped(
+      RegExp(r'(\d+(\.\d+)?)([+\-*/])(\d+(\.\d+)?)%'),
+          (match) {
+        final first = match.group(1)!;
+        final op = match.group(3)!;
+        final percent = match.group(4)!;
+        return '$first$op($first*$percent/100)';
+      },
+    );
+    // Replace a standalone percent at the end
+    out = out.replaceAllMapped(
+      RegExp(r'^(\d+(\.\d+)?)%$'),
+          (match) => '(${match.group(1)})/100',
+    );
+    // Also handle if just last number is a percent, e.g. 25+5%
+    out = out.replaceAllMapped(
+      RegExp(r'([+\-*/])(\d+(\.\d+)?)%'),
+          (match) {
+        final op = match.group(1)!;
+        // find the value before the op
+        final prevMatch =
+        RegExp(r'(\d+(\.\d+)?)(?=[+\-*/][^+\-*/]*$)').firstMatch(out);
+        final base = prevMatch != null ? prevMatch.group(1)! : "0";
+        final percent = match.group(2)!;
+        return '$op($base*$percent/100)';
+      },
+    );
+    return out;
+  }
+  // --- PERCENT FIX END ---
 
   String _calculateResult(String exp) {
     try {
       exp = exp.replaceAll('×', '*').replaceAll('÷', '/');
+      exp = _handlePercent(exp);
       Parser p = Parser();
       Expression expression = p.parse(exp);
       ContextModel cm = ContextModel();

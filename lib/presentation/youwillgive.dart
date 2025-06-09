@@ -1,16 +1,17 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'calculatorpanel.dart';
 
 class YouWillGivePage extends StatefulWidget {
   final String accountId;
   final String accountName;
   final String companyId;
 
-  // Edit mode params
   final String? ledgerId;
   final double? editDebit;
   final String? editRemark;
@@ -33,33 +34,49 @@ class YouWillGivePage extends StatefulWidget {
 
 class _YouWillGivePageState extends State<YouWillGivePage> {
   final _formKey = GlobalKey<FormState>();
-  late TextEditingController _amountController;
   late TextEditingController _remarkController;
   late DateTime _selectedDate;
   bool _isLoading = false;
 
   File? _pickedFile;
 
-  bool get isEdit => widget.ledgerId != null;
+  // Calculator state
+  String _calcRawInput = "";
+  String _calcDisplay = "";
+  double? _amountValue;
+
+  // Blinking cursor state
+  bool _showCursor = true;
+  Timer? _cursorTimer;
 
   @override
   void initState() {
     super.initState();
-    _amountController = TextEditingController(
-        text: widget.editDebit != null ? widget.editDebit!.toStringAsFixed(0) : "0");
+    _amountValue = widget.editDebit;
+    _calcRawInput = widget.editDebit != null ? widget.editDebit!.toString() : "";
+    _calcDisplay = widget.editDebit != null ? "${widget.editDebit} = ${widget.editDebit}" : "";
     _remarkController = TextEditingController(text: widget.editRemark ?? "");
     _selectedDate = widget.editDate ?? DateTime.now();
+    _startCursorTimer();
+  }
+
+  void _startCursorTimer() {
+    _cursorTimer?.cancel();
+    _cursorTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
+      setState(() {
+        _showCursor = !_showCursor;
+      });
+    });
   }
 
   @override
   void dispose() {
-    _amountController.dispose();
+    _cursorTimer?.cancel();
     _remarkController.dispose();
     super.dispose();
   }
 
   Future<void> _pickDate() async {
-    if (isEdit) return; // Prevent date picking in edit mode
     DateTime? picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate,
@@ -87,12 +104,18 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
       "${_selectedDate.year.toString().padLeft(4, '0')}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}";
 
   Future<void> _saveData() async {
+    if (_amountValue == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Enter a valid amount")),
+      );
+      return;
+    }
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
 
     final prefs = await SharedPreferences.getInstance();
     final authKey = prefs.getString("auth_token");
-    final amount = double.tryParse(_amountController.text.trim()) ?? 0;
+    final amount = _amountValue ?? 0;
 
     final url = Uri.parse('http://account.galaxyex.xyz/v1/user/api/account/add-ledger');
 
@@ -100,11 +123,11 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
       var request = http.MultipartRequest('POST', url);
 
       request.headers.addAll({
-        "Content-Type": "application/json", // will be overridden by MultipartRequest
+        "Content-Type": "application/json",
         "Authkey": authKey ?? "",
       });
 
-      if (isEdit) request.fields["ledgerId"] = widget.ledgerId!;
+      if (widget.ledgerId != null) request.fields["ledgerId"] = widget.ledgerId!;
       request.fields["amount"] = amount.toString();
       request.fields["remark"] = _remarkController.text.trim();
       request.fields["entryType"] = "give";
@@ -118,20 +141,16 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
 
       final response = await request.send();
 
-      if (response.statusCode == 200) {
-        final respStr = await response.stream.bytesToString();
-        final Map<String, dynamic> jsonResp = json.decode(respStr);
-        if (jsonResp['meta'] != null && jsonResp['meta']['status'] == true) {
-          ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(isEdit ? "Updated successfully!" : "Saved successfully!")));
-          Navigator.pop(context, true);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(jsonResp['meta']?['msg'] ?? "Failed to save (API error)")));
-        }
+      final respStr = await response.stream.bytesToString();
+      final Map<String, dynamic> jsonResp = json.decode(respStr);
+
+      if (response.statusCode == 200 && jsonResp['meta'] != null && jsonResp['meta']['status'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(widget.ledgerId != null ? "Updated successfully!" : "Saved successfully!")));
+        Navigator.pop(context, true);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Failed to save (${response.statusCode})")));
+            SnackBar(content: Text(jsonResp['meta']?['msg'] ?? "Failed to save (API error)")));
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
@@ -275,15 +294,26 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
     }
   }
 
+  void _onCalculatorChanged(String input, String preview, double? value) {
+    setState(() {
+      _calcRawInput = input;
+      _calcDisplay = preview;
+      _amountValue = value;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Both widgets width = half - spacing, height = 40
+    final bool showPreview = _calcRawInput.isNotEmpty &&
+        _calcDisplay.isNotEmpty &&
+        RegExp(r'[+\-*/×÷]').hasMatch(_calcRawInput);
+
     return Scaffold(
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
         leading: const BackButton(color: Colors.white,),
         title: Text(
-            isEdit ? 'Edit Entry (You Will Give)' : 'You Will Give To ${widget.accountName}',
+            widget.ledgerId != null ? 'Edit Entry (You Will Give)' : 'You Will Give To ${widget.accountName}',
             style: const TextStyle(fontSize: 15, color: Colors.white)),
         backgroundColor: const Color(0xffc96868),
       ),
@@ -293,21 +323,73 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
           key: _formKey,
           child: Column(
             children: [
-              TextFormField(
-                controller: _amountController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              AnimatedSize(
+                duration: Duration(milliseconds: 200),
+                curve: Curves.ease,
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 4),
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    border: Border.all(color: Colors.red.shade200),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          const Text("₹ ",
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 22,
+                                  color: Colors.red)),
+                          Expanded(
+                            child: Row(
+                              children: [
+                                Text(
+                                  _calcRawInput.isEmpty
+                                      ? ""
+                                      : _calcRawInput,
+                                  style: TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.red,
+                                  ),
+                                ),
+                                if (_showCursor)
+                                  AnimatedOpacity(
+                                    opacity: 1,
+                                    duration: const Duration(milliseconds: 200),
+                                    child: Container(
+                                      width: 2,
+                                      height: 26,
+                                      margin: const EdgeInsets.only(left: 2),
+                                      color: Colors.red,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (showPreview)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8.0, left: 3),
+                          child: Text(
+                            _calcDisplay,
+                            style: const TextStyle(
+                                fontSize: 16,
+                                color: Colors.black54,
+                                fontWeight: FontWeight.w500),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-                validator: (value) =>
-                value == null ||
-                    value.trim().isEmpty ||
-                    double.tryParse(value.trim()) == null
-                    ? 'Enter a valid amount'
-                    : null,
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 6),
               TextFormField(
                 controller: _remarkController,
                 decoration: const InputDecoration(
@@ -322,29 +404,23 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
                   Expanded(
                     child: SizedBox(
                       height: 40,
-                      child: IgnorePointer(
-                        ignoring: isEdit, // Prevent editing date on update
-                        child: InkWell(
-                          onTap: _pickDate,
-                          child: InputDecorator(
-                            decoration: InputDecoration(
-                              border: const OutlineInputBorder(),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              enabled: !isEdit,
-                              fillColor: isEdit ? Colors.grey.shade100 : null,
-                              filled: isEdit,
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    formattedDate,
-                                    style: const TextStyle(fontSize: 13),
-                                  ),
+                      child: InkWell(
+                        onTap: _pickDate,
+                        child: InputDecorator(
+                          decoration: const InputDecoration(
+                            border: OutlineInputBorder(),
+                            contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  formattedDate,
+                                  style: const TextStyle(fontSize: 13),
                                 ),
-                                const Icon(Icons.calendar_today, size: 16),
-                              ],
-                            ),
+                              ),
+                              const Icon(Icons.calendar_today, size: 16),
+                            ],
                           ),
                         ),
                       ),
@@ -380,30 +456,35 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
           ),
         ),
       ),
-      bottomNavigationBar: AnimatedPadding(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
-        padding: EdgeInsets.only(
-          left: 8,
-          right: 8,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-        ),
-        child: SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: ElevatedButton(
-            onPressed: _isLoading ? null : _saveData,
-            child: _isLoading
-                ? const CircularProgressIndicator(color: Colors.white)
-                : Text(isEdit ? 'Update' : 'Save', style: const TextStyle(color: Colors.white)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xffc96868),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(7),
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CalculatorPanel(
+            initialInput: _calcRawInput,
+            accentColor: Colors.red,
+            onChanged: _onCalculatorChanged,
+            onDone: () {},
+          ),
+          Padding(
+            padding: const EdgeInsets.all(15.0),
+            child: SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                onPressed: _isLoading ? null : _saveData,
+                child: _isLoading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : Text(widget.ledgerId != null ? 'Update' : 'Save', style: const TextStyle(color: Colors.white)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xffc96868),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
+                  elevation: 5,
+                  padding: EdgeInsets.all(2),
+                ),
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
