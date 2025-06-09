@@ -337,7 +337,7 @@ packages:
     source: hosted
     version: "0.11.1"
   math_expressions:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: math_expressions
       sha256: "218dc65bed4726562bb31c53d8daa3cc824664b26fb72d77bc592757edf74ba0"
