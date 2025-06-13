@@ -25,6 +25,7 @@ void main() async {
   final langCode = prefs.getString('selected_language_code') ?? 'en';
   AppStrings.setLanguage(langCode);
 
+
   runApp(const MyApp());
 }
 
