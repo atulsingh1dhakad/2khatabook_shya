@@ -307,7 +307,14 @@ class _LedgerDetailsState extends State<LedgerDetails> {
     final totalDebit = accountTotals['totalDebitAmount'] ?? "";
     final totalBalance = accountTotals['totalBalance'] ?? "";
 
-    final String? imageUrl = entry['path'] as String?;
+    // --- FIX: handle path as String or List<String>
+    List<String> imageUrls = [];
+    dynamic path = entry['path'];
+    if (path is String && path.isNotEmpty) {
+      imageUrls.add(path);
+    } else if (path is List) {
+      imageUrls = List<String>.from(path.whereType<String>());
+    }
 
     final runningBalanceColor =
     runningBalance > 0 ? const Color(0xFF205781) : Colors.red;
@@ -380,8 +387,8 @@ class _LedgerDetailsState extends State<LedgerDetails> {
                               ),
                             ],
                           ),
-                          if (imageUrl != null && imageUrl.isNotEmpty) ...[
-                            Divider(),
+                          if (imageUrls.isNotEmpty) ...[
+                            const Divider(),
                             const SizedBox(height: 18),
                             Text(
                               AppStrings.getString("photoAttachments"),
@@ -392,26 +399,30 @@ class _LedgerDetailsState extends State<LedgerDetails> {
                               ),
                             ),
                             const SizedBox(height: 8),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: GestureDetector(
-                                onTap: () {
-                                  showDialog(
-                                    context: context,
-                                    builder: (_) => Dialog(
-                                      child: Image.network(imageUrl, fit: BoxFit.contain),
-                                    ),
-                                  );
-                                },
-                                child: Image.network(
-                                  imageUrl,
-                                  width: 100,
-                                  height: 68,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (ctx, err, stack) =>
-                                  const Icon(Icons.broken_image, size: 40),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: imageUrls.map((url) => ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: GestureDetector(
+                                  onTap: () {
+                                    showDialog(
+                                      context: context,
+                                      builder: (_) => Dialog(
+                                        child: Image.network(url, fit: BoxFit.contain),
+                                      ),
+                                    );
+                                  },
+                                  child: Image.network(
+                                    url,
+                                    width: 100,
+                                    height: 68,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (ctx, err, stack) =>
+                                    const Icon(Icons.broken_image, size: 40),
+                                  ),
                                 ),
-                              ),
+                              )).toList(),
                             ),
                           ],
                           const SizedBox(height: 15),
