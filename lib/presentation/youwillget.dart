@@ -38,7 +38,11 @@ class _YouWillGetPageState extends State<YouWillGetPage> {
   late DateTime _selectedDate;
   bool _isLoading = false;
 
-  File? _pickedFile;
+  // For multiple new files
+  List<File> _pickedFiles = [];
+  // For existing files (when editing)
+  List<String> _existingFiles = [];
+  Set<String> _removedFiles = {};
 
   // Calculator state
   String _calcRawInput = "";
@@ -64,7 +68,51 @@ class _YouWillGetPageState extends State<YouWillGetPage> {
 
     _remarkFocusNode = FocusNode();
     _remarkFocusNode.addListener(_onRemarkFocusChange);
+
+    if (widget.ledgerId != null) {
+      // If editing, fetch existing files
+      fetchExistingFiles();
+    }
+
     _startCursorTimer();
+  }
+
+  Future<void> fetchExistingFiles() async {
+    // This assumes your backend returns ledger details with a list of file URLs under 'path'
+    final prefs = await SharedPreferences.getInstance();
+    final authKey = prefs.getString("auth_token");
+    if (authKey == null) return;
+
+    final url = "http://account.galaxyex.xyz/v1/user/api//account/get-ledger/${widget.accountId}";
+    final response = await http.get(
+      Uri.parse(url),
+      headers: {
+        "Authkey": authKey,
+        "Content-Type": "application/json",
+      },
+    );
+    if (response.statusCode == 200) {
+      final Map<String, dynamic> jsonData = json.decode(response.body);
+      if (jsonData['meta'] != null && jsonData['meta']['status'] == true) {
+        final List<dynamic> ledgerList = jsonData['data'] ?? [];
+        final entry = ledgerList.firstWhere(
+              (e) => e['ledgerId'].toString() == widget.ledgerId,
+          orElse: () => null,
+        );
+        if (entry != null) {
+          dynamic path = entry['path'];
+          if (path is String && path.isNotEmpty) {
+            setState(() {
+              _existingFiles = [path];
+            });
+          } else if (path is List) {
+            setState(() {
+              _existingFiles = List<String>.from(path.whereType<String>());
+            });
+          }
+        }
+      }
+    }
   }
 
   void _onRemarkFocusChange() {
@@ -167,8 +215,14 @@ class _YouWillGetPageState extends State<YouWillGetPage> {
       request.fields["accountId"] = widget.accountId;
       request.fields["date"] = isoDate;
 
-      if (_pickedFile != null) {
-        request.files.add(await http.MultipartFile.fromPath("bill", _pickedFile!.path));
+      // Add new files
+      for (final file in _pickedFiles) {
+        request.files.add(await http.MultipartFile.fromPath("bill", file.path));
+      }
+
+      // If editing, tell backend which files to remove
+      if (widget.ledgerId != null) {
+        request.fields["removeAttachments"] = jsonEncode(_removedFiles.toList());
       }
 
       final response = await request.send();
@@ -192,10 +246,13 @@ class _YouWillGetPageState extends State<YouWillGetPage> {
   }
 
   Future<void> _onAttachFile() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.any);
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.any,
+      allowMultiple: false,
+    );
     if (result != null && result.files.single.path != null) {
       setState(() {
-        _pickedFile = File(result.files.single.path!);
+        _pickedFiles.add(File(result.files.single.path!));
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("File attached: ${result.files.single.name}")),
@@ -204,126 +261,190 @@ class _YouWillGetPageState extends State<YouWillGetPage> {
   }
 
   Widget _buildFilePreview() {
-    if (_pickedFile == null) return const SizedBox.shrink();
-
-    final String ext = _pickedFile!.path.split('.').last.toLowerCase();
     final imageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
+    final filesPresent = _pickedFiles.isNotEmpty || _existingFiles.any((f) => !_removedFiles.contains(f));
+    if (!filesPresent) return const SizedBox.shrink();
 
-    if (imageExts.contains(ext)) {
-      return Padding(
-        padding: const EdgeInsets.only(top: 12),
-        child: Container(
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: Colors.grey[100],
-            border: Border.all(color: Colors.grey.shade300, width: 1),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Row(
-            children: [
-              ClipRRect(
-                borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(10), bottomLeft: Radius.circular(10)),
-                child: Image.file(
-                  _pickedFile!,
-                  height: 75,
-                  width: 75,
-                  fit: BoxFit.cover,
-                ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Existing files (from server)
+        ..._existingFiles.where((f) => !_removedFiles.contains(f)).map((url) {
+          final ext = url.split('.').last.toLowerCase();
+          final isImage = imageExts.contains(ext);
+          return Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                border: Border.all(color: Colors.grey.shade300, width: 1),
+                borderRadius: BorderRadius.circular(10),
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "Attached Image",
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                          color: Colors.black87,
+              child: Row(
+                children: [
+                  if (isImage)
+                    GestureDetector(
+                      onTap: () => showDialog(
+                        context: context,
+                        builder: (_) => Dialog(
+                          child: Image.network(url, fit: BoxFit.contain),
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _pickedFile!.path.split('/').last,
-                        style: const TextStyle(fontSize: 13, color: Colors.black54),
-                        overflow: TextOverflow.ellipsis,
+                      child: ClipRRect(
+                        borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(10), bottomLeft: Radius.circular(10)),
+                        child: Image.network(
+                          url,
+                          height: 75,
+                          width: 75,
+                          fit: BoxFit.cover,
+                          errorBuilder: (ctx, err, stack) =>
+                          const Icon(Icons.broken_image, size: 40),
+                        ),
                       ),
-                    ],
+                    )
+                  else
+                    Container(
+                      margin: const EdgeInsets.only(left: 14, right: 14),
+                      child: const Icon(Icons.insert_drive_file, color: Colors.blueAccent, size: 38),
+                    ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            isImage ? "Attached Image" : "Attached File",
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            url.split('/').last,
+                            style: const TextStyle(fontSize: 13, color: Colors.black54),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20, color: Colors.grey),
+                    onPressed: () {
+                      setState(() {
+                        _removedFiles.add(url);
+                      });
+                    },
+                    tooltip: "Remove attachment",
+                  ),
+                ],
+              ),
+            ),
+          );
+        }),
+        // New picked files
+        ..._pickedFiles.asMap().entries.map((entry) {
+          final i = entry.key;
+          final file = entry.value;
+          final ext = file.path.split('.').last.toLowerCase();
+          final isImage = imageExts.contains(ext);
+          return Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                border: Border.all(color: Colors.grey.shade300, width: 1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  if (isImage)
+                    ClipRRect(
+                      borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(10), bottomLeft: Radius.circular(10)),
+                      child: Image.file(
+                        file,
+                        height: 75,
+                        width: 75,
+                        fit: BoxFit.cover,
+                      ),
+                    )
+                  else
+                    Container(
+                      margin: const EdgeInsets.only(left: 14, right: 14),
+                      child: const Icon(Icons.insert_drive_file, color: Colors.blueAccent, size: 38),
+                    ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            isImage ? "Attached Image" : "Attached File",
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            file.path.split('/').last,
+                            style: const TextStyle(fontSize: 13, color: Colors.black54),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20, color: Colors.grey),
+                    onPressed: () {
+                      setState(() {
+                        _pickedFiles.removeAt(i);
+                      });
+                    },
+                    tooltip: "Remove attachment",
+                  ),
+                ],
+              ),
+            ),
+          );
+        }),
+        Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: Row(
+            children: [
+              ElevatedButton.icon(
+                onPressed: _onAttachFile,
+                icon: const Icon(Icons.attach_file, size: 18),
+                label: const Text("Attach More"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 ),
               ),
-              const SizedBox(width: 6),
-              IconButton(
-                icon: const Icon(Icons.close, size: 20, color: Colors.grey),
-                onPressed: () {
-                  setState(() {
-                    _pickedFile = null;
-                  });
-                },
-                tooltip: "Remove attachment",
-              ),
+              const SizedBox(width: 10),
+              const Text(
+                "You can add/remove multiple files",
+                style: TextStyle(fontSize: 13, color: Colors.grey),
+              )
             ],
           ),
         ),
-      );
-    } else {
-      return Padding(
-        padding: const EdgeInsets.only(top: 12),
-        child: Container(
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: Colors.grey[100],
-            border: Border.all(color: Colors.grey.shade300, width: 1),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Row(
-            children: [
-              Container(
-                margin: const EdgeInsets.only(left: 14, right: 14),
-                child: const Icon(Icons.insert_drive_file, color: Colors.blueAccent, size: 38),
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "Attached File",
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _pickedFile!.path.split('/').last,
-                        style: const TextStyle(fontSize: 13, color: Colors.black54),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.close, size: 20, color: Colors.grey),
-                onPressed: () {
-                  setState(() {
-                    _pickedFile = null;
-                  });
-                },
-                tooltip: "Remove attachment",
-              ),
-            ],
-          ),
-        ),
-      );
-    }
+      ],
+    );
   }
 
   void _onCalculatorChanged(String input, String preview, double? value) {
@@ -336,7 +457,6 @@ class _YouWillGetPageState extends State<YouWillGetPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Updated preview logic: show as soon as an operator is present or at end
     final bool showPreview = _calcRawInput.isNotEmpty &&
         _calcDisplay.isNotEmpty &&
         (
@@ -362,11 +482,11 @@ class _YouWillGetPageState extends State<YouWillGetPage> {
               GestureDetector(
                 onTap: _onAmountTap,
                 child: AnimatedSize(
-                  duration: Duration(milliseconds: 200),
+                  duration: const Duration(milliseconds: 200),
                   curve: Curves.ease,
                   child: Container(
                     margin: const EdgeInsets.only(bottom: 4),
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 20),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 20),
                     decoration: BoxDecoration(
                       color: Colors.green.shade50,
                       border: Border.all(color: Colors.green.shade200),
@@ -390,7 +510,7 @@ class _YouWillGetPageState extends State<YouWillGetPage> {
                                     _calcRawInput.isEmpty
                                         ? ""
                                         : _calcRawInput,
-                                    style: TextStyle(
+                                    style: const TextStyle(
                                       fontSize: 22,
                                       fontWeight: FontWeight.w600,
                                       color: Colors.green,
@@ -472,27 +592,7 @@ class _YouWillGetPageState extends State<YouWillGetPage> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Expanded(
-                    child: SizedBox(
-                      height: 40,
-                      child: OutlinedButton.icon(
-                        onPressed: _onAttachFile,
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          side: const BorderSide(),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(7),
-                          ),
-                        ),
-                        icon: const Icon(Icons.camera_alt, size: 18, color: Colors.black,),
-                        label: Text(
-                          _pickedFile == null ? "Attach File" : "File: ${_pickedFile!.path.split('/').last}",
-                          style: const TextStyle(fontSize: 13, color: Colors.grey),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
-                  ),
+                  // The attach button is now in file preview section
                 ],
               ),
               _buildFilePreview(),
@@ -523,9 +623,9 @@ class _YouWillGetPageState extends State<YouWillGetPage> {
                     : Text(widget.ledgerId != null ? 'Update' : 'Save', style: const TextStyle(color: Colors.white)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF5D8D4B),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
+                  shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
                   elevation: 5,
-                  padding: EdgeInsets.all(2),
+                  padding: const EdgeInsets.all(2),
                 ),
               ),
             ),
