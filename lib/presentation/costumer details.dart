@@ -10,7 +10,6 @@ import 'youwillgive.dart';
 import 'youwillget.dart';
 import 'Addcustomerscreen.dart';
 import '../../main.dart';
-// If you use a helper: import '../../localized_string.dart';
 
 const double kFontVerySmall = 10;
 const double kFontSmall = 13;
@@ -240,9 +239,13 @@ class _CustomerDetailsState extends State<CustomerDetails>
         ? "-₹${runningBalance.abs().toStringAsFixed(2)}"
         : "₹${runningBalance.toStringAsFixed(2)}");
 
-    final String? imageUrl = entry['path'] as String?;
-    if (imageUrl != null && imageUrl.isNotEmpty) {
-      print("Ledger Attachment URL: $imageUrl");
+    // Handle path as String or List<String>
+    List<String> imageUrls = [];
+    dynamic path = entry['path'];
+    if (path is String && path.isNotEmpty) {
+      imageUrls.add(path);
+    } else if (path is List) {
+      imageUrls = List<String>.from(path.whereType<String>());
     }
 
     return GestureDetector(
@@ -335,30 +338,35 @@ class _CustomerDetailsState extends State<CustomerDetails>
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                        // Image below the text, not beside it
-                        if (imageUrl != null && imageUrl.isNotEmpty)
+                        // Show all attachments as images
+                        if (imageUrls.isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.only(top: 6.0),
-                            child: GestureDetector(
-                              onTap: () {
-                                showDialog(
-                                  context: context,
-                                  builder: (_) => Dialog(
-                                    child: Image.network(imageUrl, fit: BoxFit.contain),
+                            child: Row(
+                              children: imageUrls.map((url) => Padding(
+                                padding: const EdgeInsets.only(right: 4),
+                                child: GestureDetector(
+                                  onTap: () {
+                                    showDialog(
+                                      context: context,
+                                      builder: (_) => Dialog(
+                                        child: Image.network(url, fit: BoxFit.contain),
+                                      ),
+                                    );
+                                  },
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(6),
+                                    child: Image.network(
+                                      url,
+                                      width: 48,
+                                      height: 48,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (ctx, err, stack) =>
+                                      const Icon(Icons.broken_image, size: 32),
+                                    ),
                                   ),
-                                );
-                              },
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(6),
-                                child: Image.network(
-                                  imageUrl,
-                                  width: 48,
-                                  height: 48,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (ctx, err, stack) =>
-                                  const Icon(Icons.broken_image, size: 32),
                                 ),
-                              ),
+                              )).toList(),
                             ),
                           ),
                       ],
@@ -464,7 +472,7 @@ class _CustomerDetailsState extends State<CustomerDetails>
       amountTextColor = const Color(0xFF198754);
       displayAmount = balance;
     } else {
-      label = AppStrings.getString("settledUp"); // Ensure this key is in your AppStrings maps
+      label = AppStrings.getString("settledUp");
       amountTextColor = Colors.grey;
       displayAmount = 0.0;
     }
@@ -497,7 +505,7 @@ class _CustomerDetailsState extends State<CustomerDetails>
                           child: Text(
                             accountName.isNotEmpty
                                 ? accountName
-                                : AppStrings.getString("loading"), // add "loading" key if you want localized
+                                : AppStrings.getString("loading"),
                             style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 20,
@@ -597,7 +605,7 @@ class _CustomerDetailsState extends State<CustomerDetails>
                   Expanded(
                     flex: 6,
                     child: Text(
-                      AppStrings.getString("dateRemark"), // Add "dateRemark" key to AppStrings
+                      AppStrings.getString("dateRemark"),
                       style: TextStyle(
                         fontSize: kFontVerySmall,
                         color: Colors.grey[600],
@@ -653,7 +661,7 @@ class _CustomerDetailsState extends State<CustomerDetails>
                           color: Colors.grey.withOpacity(0.7)),
                       const SizedBox(height: 12),
                       Text(
-                        AppStrings.getString("noEntryAvailable"), // Add this key to AppStrings
+                        AppStrings.getString("noEntryAvailable"),
                         style: TextStyle(
                             fontSize: kFontLarge,
                             color: Colors.grey[700]),
