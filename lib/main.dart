@@ -4,20 +4,27 @@ import 'package:http_interceptor/http_interceptor.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
+import 'LIST_LANG.dart';
 import 'auth_interceptor.dart';
 import 'presentation/loginscreen.dart';
 import 'security/calciscreen.dart';
 import 'presentation/homescreen.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
-
 final RouteObserver<ModalRoute<void>> routeObserver = RouteObserver<ModalRoute<void>>();
 
 final http.Client httpClient = InterceptedClient.build(
   interceptors: [AuthInterceptor(navigatorKey)],
 );
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize language for AppStrings before building any widget.
+  final prefs = await SharedPreferences.getInstance();
+  final langCode = prefs.getString('selected_language_code') ?? 'en';
+  AppStrings.setLanguage(langCode);
+
   runApp(const MyApp());
 }
 
@@ -26,8 +33,8 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      navigatorKey: navigatorKey, // Set navigatorKey here!
-      navigatorObservers: [routeObserver], // Add the global route observer here!
+      navigatorKey: navigatorKey,
+      navigatorObservers: [routeObserver],
       debugShowCheckedModeBanner: false,
       home: const EntryGate(),
     );
@@ -87,6 +94,7 @@ class _EntryGateState extends State<EntryGate> {
       _pushReplace(const EmailLoginScreen());
     }
   }
+
   /// Returns:
   ///   - true  : if security is active
   ///   - false : if security is not active

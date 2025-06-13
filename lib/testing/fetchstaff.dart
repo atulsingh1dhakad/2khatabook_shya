@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-
+import '../LIST_LANG.dart';
 import '../presentation/addstaff.dart';
 
 class StaffListPage extends StatefulWidget {
@@ -16,7 +16,7 @@ class _StaffListPageState extends State<StaffListPage> {
   bool isLoading = true;
   String? errorMessage;
   List<dynamic> staffList = [];
-  Map<String, String> companyMap = {}; // companyId -> companyName
+  Map<String, String> companyMap = {};
 
   @override
   void initState() {
@@ -59,7 +59,7 @@ class _StaffListPageState extends State<StaffListPage> {
     final authKey = await getAuthToken();
     if (authKey == null) {
       setState(() {
-        errorMessage = "Authentication token missing. Please log in.";
+        errorMessage = AppStrings.getString("authTokenMissing");
         isLoading = false;
       });
       return;
@@ -82,19 +82,19 @@ class _StaffListPageState extends State<StaffListPage> {
           });
         } else {
           setState(() {
-            errorMessage = jsonData['meta']?['msg'] ?? "Failed to fetch staff list";
+            errorMessage = jsonData['meta']?['msg'] ?? AppStrings.getString("failedToFetchStaffList");
             isLoading = false;
           });
         }
       } else {
         setState(() {
-          errorMessage = "Server error: ${response.statusCode}";
+          errorMessage = "${AppStrings.getString("serverError")}: ${response.statusCode}";
           isLoading = false;
         });
       }
     } catch (e) {
       setState(() {
-        errorMessage = "Error: $e";
+        errorMessage = "${AppStrings.getString("error")}: $e";
         isLoading = false;
       });
     }
@@ -136,17 +136,17 @@ class _StaffListPageState extends State<StaffListPage> {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  infoRow("UserID", staff['loginId']),
-                  infoRow("User Type", staff['userType']),
+                  infoRow(AppStrings.getString("userId"), staff['loginId']),
+                  infoRow(AppStrings.getString("userType"), staff['userType']),
                   if (companyAccess.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 12.0),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            "Company Access:",
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          Text(
+                            AppStrings.getString("companyAccess"),
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                           ),
                           ...companyAccess.map((ca) {
                             final cid = ca['companyId'] ?? '';
@@ -186,7 +186,6 @@ class _StaffListPageState extends State<StaffListPage> {
                         child: ElevatedButton.icon(
                           onPressed: () {
                             Navigator.pop(context);
-                            // Navigate to AddStaffScreen with staff data for editing
                             Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -198,7 +197,7 @@ class _StaffListPageState extends State<StaffListPage> {
                             );
                           },
                           icon: const Icon(Icons.edit, color: Colors.white),
-                          label: const Text("Edit", style: TextStyle(color: Colors.white)),
+                          label: Text(AppStrings.getString("edit"), style: const TextStyle(color: Colors.white)),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.green,
                             shape: RoundedRectangleBorder(
@@ -217,7 +216,7 @@ class _StaffListPageState extends State<StaffListPage> {
                               borderRadius: BorderRadius.circular(10),
                             ),
                           ),
-                          child: const Text("Close", style: TextStyle(color: Colors.white)),
+                          child: Text(AppStrings.getString("close"), style: const TextStyle(color: Colors.white)),
                         ),
                       ),
                     ],
@@ -271,7 +270,6 @@ class _StaffListPageState extends State<StaffListPage> {
         ),
         child: Row(
           children: [
-            // Circle avatar with initial
             Container(
               width: 44,
               height: 44,
@@ -292,7 +290,6 @@ class _StaffListPageState extends State<StaffListPage> {
               ),
             ),
             const SizedBox(width: 16),
-            // Name, UserID,
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -307,7 +304,7 @@ class _StaffListPageState extends State<StaffListPage> {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    "UserID: $loginId",
+                    "${AppStrings.getString("userId")}: $loginId",
                     style: const TextStyle(
                       color: Colors.black87,
                       fontSize: 14,
@@ -317,7 +314,6 @@ class _StaffListPageState extends State<StaffListPage> {
                 ],
               ),
             ),
-            // Arrow icon
             Icon(Icons.arrow_forward_ios, color: Colors.grey[500], size: 22),
           ],
         ),
@@ -329,8 +325,8 @@ class _StaffListPageState extends State<StaffListPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: BackButton(color: Colors.white),
-        title: const Text("Staff", style: TextStyle(color: Colors.white)),
+        leading: const BackButton(color: Colors.white),
+        title: Text(AppStrings.getString("staff"), style: const TextStyle(color: Colors.white)),
         backgroundColor: const Color(0xFF265E85),
         elevation: 0,
       ),
@@ -353,7 +349,7 @@ class _StaffListPageState extends State<StaffListPage> {
                         Icon(Icons.inbox, size: 60, color: Colors.grey.withOpacity(0.7)),
                         const SizedBox(height: 12),
                         Text(
-                          "No staff available, add now",
+                          AppStrings.getString("noStaffAvailableAddNow"),
                           style: TextStyle(fontSize: 17, color: Colors.grey[700]),
                         ),
                       ],
@@ -367,7 +363,6 @@ class _StaffListPageState extends State<StaffListPage> {
                 ),
               ],
             ),
-            // Add Staff button at bottom
             Positioned(
               bottom: 18,
               left: 14,
@@ -377,9 +372,9 @@ class _StaffListPageState extends State<StaffListPage> {
                 height: 56,
                 child: ElevatedButton.icon(
                   icon: const Icon(Icons.add, color: Colors.white),
-                  label: const Text(
-                    "Add Staff",
-                    style: TextStyle(fontSize: 18, color: Colors.white),
+                  label: Text(
+                    AppStrings.getString("addStaff"),
+                    style: const TextStyle(fontSize: 18, color: Colors.white),
                   ),
                   onPressed: () {
                     Navigator.push(

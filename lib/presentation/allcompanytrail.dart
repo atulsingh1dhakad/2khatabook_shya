@@ -2,23 +2,13 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import '../LIST_LANG.dart';
 import 'Reportscreen.dart';
 import 'HomeScreen.dart';
 
 const Color kPrimaryBlue = Color(0xFF205781);
 const Color kGiveRed = Color(0xFFD32F2F);
 const Color kGetBlue = Color(0xFF205781);
-
-// Title case utility
-String toTitleCase(String text) {
-  if (text.isEmpty) return text;
-  return text
-      .split(' ')
-      .map((word) => word.isEmpty
-      ? word
-      : word[0].toUpperCase() + word.substring(1).toLowerCase())
-      .join(' ');
-}
 
 class AllCompanyTrialScreen extends StatefulWidget {
   const AllCompanyTrialScreen({super.key});
@@ -57,7 +47,7 @@ class _AllCompanyTrialScreenState extends State<AllCompanyTrialScreen> {
 
       if (authKey == null) {
         setState(() {
-          errorMsg = "No authentication token found. Please log in again.";
+          errorMsg = AppStrings.getString("noAuthToken");
           isLoading = false;
         });
         return;
@@ -84,7 +74,7 @@ class _AllCompanyTrialScreenState extends State<AllCompanyTrialScreen> {
         } else {
           setState(() {
             isLoading = false;
-            errorMsg = data['meta']?['msg'] ?? 'Failed to fetch data';
+            errorMsg = data['meta']?['msg'] ?? AppStrings.getString("failedToFetchData");
             companies = [];
             totalCredit = 0;
             totalDebit = 0;
@@ -94,7 +84,7 @@ class _AllCompanyTrialScreenState extends State<AllCompanyTrialScreen> {
       } else {
         setState(() {
           isLoading = false;
-          errorMsg = 'Network error: ${response.statusCode}';
+          errorMsg = '${AppStrings.getString("networkError")}: ${response.statusCode}';
           companies = [];
           totalCredit = 0;
           totalDebit = 0;
@@ -104,7 +94,7 @@ class _AllCompanyTrialScreenState extends State<AllCompanyTrialScreen> {
     } catch (e) {
       setState(() {
         isLoading = false;
-        errorMsg = "Error: ${e.toString()}";
+        errorMsg = "${AppStrings.getString("error")}: ${e.toString()}";
         companies = [];
         totalCredit = 0;
         totalDebit = 0;
@@ -139,11 +129,11 @@ class _AllCompanyTrialScreenState extends State<AllCompanyTrialScreen> {
 
   String formatCompactAmount(num amount) {
     if (amount.abs() >= 10000000) {
-      return "${(amount / 10000000).toStringAsFixed(amount % 10000000 == 0 ? 0 : 2)}Cr";
+      return "${(amount / 10000000).toStringAsFixed(amount % 10000000 == 0 ? 0 : 2)}${AppStrings.getString("CR")}";
     } else if (amount.abs() >= 100000) {
-      return "${(amount / 100000).toStringAsFixed(amount % 100000 == 0 ? 0 : 2)}L";
+      return "${(amount / 100000).toStringAsFixed(amount % 100000 == 0 ? 0 : 2)}${AppStrings.getString("L")}";
     } else if (amount.abs() >= 1000) {
-      return "${(amount / 1000).toStringAsFixed(amount % 1000 == 0 ? 0 : 1)}K";
+      return "${(amount / 1000).toStringAsFixed(amount % 1000 == 0 ? 0 : 1)}${AppStrings.getString("K")}";
     } else {
       return amount.toStringAsFixed(2);
     }
@@ -175,7 +165,7 @@ class _AllCompanyTrialScreenState extends State<AllCompanyTrialScreen> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
-          toTitleCase("all company trial"),
+          AppStrings.getString("allCompanyTrial"),
           style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w700,
@@ -208,19 +198,19 @@ class _AllCompanyTrialScreenState extends State<AllCompanyTrialScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
                         InfoCard(
-                          title: toTitleCase("you will give"),
+                          title: AppStrings.getString("youWillGive"),
                           amount: "₹${formatCompactAmount(totalDebit)}",
                           amountFontSize: 12,
                           amountColor: kGiveRed,
                         ),
                         InfoCard(
-                          title: toTitleCase("you will get"),
+                          title: AppStrings.getString("youWillGet"),
                           amount: "₹${formatCompactAmount(totalCredit)}",
                           amountFontSize: 12,
                           amountColor: kGetBlue,
                         ),
                         InfoCard(
-                          title: toTitleCase("balance"),
+                          title: AppStrings.getString("balance"),
                           amount: "₹${formatCompactAmount(totalBalance)}",
                           amountFontSize: 12,
                           amountColor: getCardBalanceColor(),
@@ -247,7 +237,7 @@ class _AllCompanyTrialScreenState extends State<AllCompanyTrialScreen> {
                         children: [
                           const Icon(Icons.file_copy, size: 20, color: Colors.grey),
                           const SizedBox(width: 8),
-                          Text(toTitleCase("get report"),
+                          Text(AppStrings.getString("getReport"),
                               style: const TextStyle(fontSize: 12)),
                         ],
                       ),
@@ -267,7 +257,7 @@ class _AllCompanyTrialScreenState extends State<AllCompanyTrialScreen> {
                   Icon(Icons.business, size: 70, color: Colors.grey.withOpacity(0.7)),
                   const SizedBox(height: 12),
                   Text(
-                    toTitleCase("no company available"),
+                    AppStrings.getString("noCompanyAvailable"),
                     style: TextStyle(fontSize: 18, color: Colors.grey[700]),
                   ),
                 ],
@@ -302,7 +292,7 @@ class _AllCompanyTrialScreenState extends State<AllCompanyTrialScreen> {
                           children: [
                             Expanded(
                               child: Text(
-                                toTitleCase(name),
+                                name,
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w500,
                                 ),

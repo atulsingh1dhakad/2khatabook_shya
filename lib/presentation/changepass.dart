@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../LIST_LANG.dart';
 import 'loginscreen.dart';
 
 // --- Color Theme Based On Image --- //
@@ -36,11 +37,11 @@ class _ChangePassState extends State<ChangePass> {
     final confirmPassword = repeatNewPassController.text.trim();
 
     if (oldPassword.isEmpty || newPassword.isEmpty || confirmPassword.isEmpty) {
-      _showSnackBar("Please fill all fields");
+      _showSnackBar(AppStrings.getString("fillAllFields"));
       return;
     }
     if (newPassword != confirmPassword) {
-      _showSnackBar("New passwords do not match");
+      _showSnackBar(AppStrings.getString("passwordsDoNotMatch"));
       return;
     }
 
@@ -52,7 +53,7 @@ class _ChangePassState extends State<ChangePass> {
     String? authToken = prefs.getString("auth_token");
 
     if (authToken == null || authToken.isEmpty) {
-      _showSnackBar("Authentication error. Please log in again.");
+      _showSnackBar(AppStrings.getString("authErrorRelogin"));
       setState(() {
         isLoading = false;
       });
@@ -87,14 +88,14 @@ class _ChangePassState extends State<ChangePass> {
         setState(() {
           isLoading = false;
         });
-        String msg = data["meta"]?["msg"] ?? "Failed to change password";
+        String msg = data["meta"]?["msg"] ?? AppStrings.getString("failedToChangePassword");
         _showSnackBar(msg);
       }
     } catch (e) {
       setState(() {
         isLoading = false;
       });
-      _showSnackBar("Error: ${e.toString()}");
+      _showSnackBar("${AppStrings.getString("error")}: ${e.toString()}");
     }
   }
 
@@ -116,11 +117,11 @@ class _ChangePassState extends State<ChangePass> {
           }
         });
         return AlertDialog(
-          title: const Text("Password Changed"),
-          content: const Text("Your password has been changed. Please relogin."),
+          title: Text(AppStrings.getString("passwordChanged")),
+          content: Text(AppStrings.getString("reloginPrompt")),
           actions: [
             TextButton(
-              child: const Text("OK"),
+              child: Text(AppStrings.getString("ok")),
               onPressed: () {
                 Navigator.of(context).pop();
                 _logoutAndNavigate();
@@ -185,7 +186,9 @@ class _ChangePassState extends State<ChangePass> {
                 ),
                 onPressed: onToggle,
                 splashRadius: 20,
-                tooltip: showPassword ? "Hide password" : "View password",
+                tooltip: showPassword
+                    ? AppStrings.getString("hidePassword")
+                    : AppStrings.getString("viewPassword"),
               ),
             ],
           ),
@@ -204,9 +207,9 @@ class _ChangePassState extends State<ChangePass> {
           color: Colors.white,
         ),
         elevation: 0,
-        title: const Text(
-          "Change Password",
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+        title: Text(
+          AppStrings.getString("changePassword"),
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
         ),
         centerTitle: true,
         shape: const RoundedRectangleBorder(
@@ -231,22 +234,22 @@ class _ChangePassState extends State<ChangePass> {
                 ),
                 _passwordField(
                   controller: currentPassController,
-                  label: "Current password",
-                  placeholder: "Enter your current password",
+                  label: AppStrings.getString("currentPassword"),
+                  placeholder: AppStrings.getString("enterCurrentPassword"),
                   showPassword: _showCurrent,
                   onToggle: () => setState(() => _showCurrent = !_showCurrent),
                 ),
                 _passwordField(
                   controller: newPassController,
-                  label: "New password",
-                  placeholder: "Enter a new password",
+                  label: AppStrings.getString("newPassword"),
+                  placeholder: AppStrings.getString("enterNewPassword"),
                   showPassword: _showNew,
                   onToggle: () => setState(() => _showNew = !_showNew),
                 ),
                 _passwordField(
                   controller: repeatNewPassController,
-                  label: "Confirm new password",
-                  placeholder: "Confirm new password",
+                  label: AppStrings.getString("confirmNewPassword"),
+                  placeholder: AppStrings.getString("confirmNewPasswordPlaceholder"),
                   showPassword: _showRepeat,
                   onToggle: () => setState(() => _showRepeat = !_showRepeat),
                 ),
@@ -267,7 +270,7 @@ class _ChangePassState extends State<ChangePass> {
                       textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
                     ),
                     onPressed: _changePassword,
-                    child: const Text("Change password"),
+                    child: Text(AppStrings.getString("changePasswordButton")),
                   ),
                 ),
                 const SizedBox(height: 36),

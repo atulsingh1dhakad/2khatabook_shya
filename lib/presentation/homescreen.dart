@@ -3,6 +3,7 @@ import 'package:Calculator/presentation/Reportscreen.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../LIST_LANG.dart';
 import '../main.dart';
 import 'Addcompanyscreen.dart';
 import 'Addcustomerscreen.dart';
@@ -16,16 +17,6 @@ const double kFontXLarge = 18;
 
 enum FilterBy { all, youWillGet, youWillGive, settled }
 enum SortBy { none, mostRecent, highestAmount, byName, oldest, leastAmount }
-
-String toTitleCase(String text) {
-  if (text.isEmpty) return text;
-  return text
-      .split(' ')
-      .map((word) => word.isEmpty
-      ? word
-      : word[0].toUpperCase() + word.substring(1).toLowerCase())
-      .join(' ');
-}
 
 double toDouble(dynamic value) {
   if (value is int) return value.toDouble();
@@ -116,7 +107,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
 
   String getFormattedLastUpdate(Map<String, dynamic> acc) {
     final lastUpdate = acc['lastUpdate'];
-    if (lastUpdate == null) return "Never";
+    if (lastUpdate == null) return AppStrings.getString('never');
     try {
       DateTime dt;
       if (lastUpdate is int) {
@@ -124,13 +115,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
       } else if (lastUpdate is String) {
         dt = DateTime.parse(lastUpdate);
       } else {
-        return "Never";
+        return AppStrings.getString('never');
       }
       final date = "${dt.day.toString().padLeft(2, '0')}-${dt.month.toString().padLeft(2, '0')}-${dt.year}";
       final time = "${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
       return "$date $time";
     } catch (_) {
-      return "Never";
+      return AppStrings.getString('never');
     }
   }
 
@@ -146,7 +137,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
 
       if (authKey == null) {
         setState(() {
-          errorMsg = "No authentication token found. Please log in again.";
+          errorMsg = AppStrings.getString('noAuthToken');
           isLoadingCompanies = false;
         });
         return;
@@ -377,7 +368,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
                                       backgroundColor: const Color(0xFF205781),
                                       child: Text(
                                         getInitials(
-                                          toTitleCase(company['companyName']),
+                                          AppStrings.getString(company['companyName']),
                                           index,
                                         ),
                                         style: const TextStyle(
@@ -395,7 +386,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
                                         CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            toTitleCase(company['companyName']),
+                                            AppStrings.getString(company['companyName']),
                                             style: TextStyle(
                                               color: isSelected
                                                   ? Colors.white
@@ -405,16 +396,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
                                             ),
                                           ),
                                           const SizedBox(height: 1),
-                                          Text(
-                                            toTitleCase("4 Customers"),
-                                            style: TextStyle(
-                                              color: isSelected
-                                                  ? Colors.white.withOpacity(0.8)
-                                                  : const Color(0xFF205781),
-                                              fontWeight: FontWeight.w400,
-                                              fontSize: kFontSmall,
-                                            ),
-                                          ),
                                         ],
                                       ),
                                     ),
@@ -469,11 +450,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
                       );
                     },
                     icon: const Icon(Icons.add, size: 20, color: Colors.white),
-                    label: const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 6.0),
+                    label: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6.0),
                       child: Text(
-                        "Add New Company",
-                        style: TextStyle(
+                        AppStrings.getString("addNewCompany"),
+                        style: const TextStyle(
                             fontSize: kFontLarge,
                             fontWeight: FontWeight.w500,
                             color: Colors.white),
@@ -500,11 +481,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
 
   String formatCompactAmount(num amount) {
     if (amount.abs() >= 10000000) {
-      return "${(amount / 10000000).toStringAsFixed(amount % 10000000 == 0 ? 0 : 2)}Cr";
+      return "${(amount / 10000000).toStringAsFixed(amount % 10000000 == 0 ? 0 : 2)}${AppStrings.getString("CR")}";
     } else if (amount.abs() >= 100000) {
-      return "${(amount / 100000).toStringAsFixed(amount % 100000 == 0 ? 0 : 2)}L";
+      return "${(amount / 100000).toStringAsFixed(amount % 100000 == 0 ? 0 : 2)}${AppStrings.getString("L")}";
     } else if (amount.abs() >= 1000) {
-      return "${(amount / 1000).toStringAsFixed(amount % 1000 == 0 ? 0 : 1)}K";
+      return "${(amount / 1000).toStringAsFixed(amount % 1000 == 0 ? 0 : 1)}${AppStrings.getString("K")}";
     } else {
       return amount.toStringAsFixed(2);
     }
@@ -525,7 +506,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
     return diff < 0 ? Colors.red : const Color(0xFF2D486C);
   }
 
-  // ---- MAIN CHANGE: NONE = NO SORT ----
   List<dynamic> getFilteredAndSortedAccounts() {
     List<dynamic> filtered = accounts.where((acc) {
       final name = (acc['name'] ?? '').toString().toLowerCase();
@@ -549,7 +529,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
 
     switch (_selectedSort) {
       case SortBy.none:
-      // No sort applied!
         break;
       case SortBy.highestAmount:
         filtered.sort((b, a) => (toDouble(a['total_Balance'])).compareTo(toDouble(b['total_Balance'])));
@@ -596,7 +575,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    toTitleCase("Filter by"),
+                    AppStrings.getString("filterBy"),
                     style: TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 16,
@@ -608,17 +587,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
                   spacing: 10,
                   runSpacing: 10,
                   children: [
-                    _buildFilterChip(toTitleCase("All"), FilterBy.all, tempFilter, setModalState, (val) { tempFilter = val; }),
-                    _buildFilterChip(toTitleCase("You will get"), FilterBy.youWillGet, tempFilter, setModalState, (val) { tempFilter = val; }),
-                    _buildFilterChip(toTitleCase("You will give"), FilterBy.youWillGive, tempFilter, setModalState, (val) { tempFilter = val; }),
-                    _buildFilterChip(toTitleCase("Settled"), FilterBy.settled, tempFilter, setModalState, (val) { tempFilter = val; }),
+                    _buildFilterChip(AppStrings.getString("all"), FilterBy.all, tempFilter, setModalState, (val) { tempFilter = val; }),
+                    _buildFilterChip(AppStrings.getString("youWillGet"), FilterBy.youWillGet, tempFilter, setModalState, (val) { tempFilter = val; }),
+                    _buildFilterChip(AppStrings.getString("youWillGive"), FilterBy.youWillGive, tempFilter, setModalState, (val) { tempFilter = val; }),
+                    _buildFilterChip(AppStrings.getString("settledUp"), FilterBy.settled, tempFilter, setModalState, (val) { tempFilter = val; }),
                   ],
                 ),
                 const SizedBox(height: 20),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    toTitleCase("Sort by"),
+                    AppStrings.getString("sortBy"),
                     style: TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 16,
@@ -626,12 +605,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
                   ),
                 ),
                 const SizedBox(height: 8),
-                _buildSortRadio("None (No Sorting)", SortBy.none, tempSort, setModalState, (val) { tempSort = val; }),
-                _buildSortRadio(toTitleCase("Most Recent"), SortBy.mostRecent, tempSort, setModalState, (val) { tempSort = val; }),
-                _buildSortRadio(toTitleCase("Highest Amount"), SortBy.highestAmount, tempSort, setModalState, (val) { tempSort = val; }),
-                _buildSortRadio(toTitleCase("By Name (A-Z)"), SortBy.byName, tempSort, setModalState, (val) { tempSort = val; }),
-                _buildSortRadio(toTitleCase("Oldest"), SortBy.oldest, tempSort, setModalState, (val) { tempSort = val; }),
-                _buildSortRadio(toTitleCase("Least Amount"), SortBy.leastAmount, tempSort, setModalState, (val) { tempSort = val; }),
+                _buildSortRadio(AppStrings.getString("noneSort"), SortBy.none, tempSort, setModalState, (val) { tempSort = val; }),
+                _buildSortRadio(AppStrings.getString("mostRecent"), SortBy.mostRecent, tempSort, setModalState, (val) { tempSort = val; }),
+                _buildSortRadio(AppStrings.getString("highestAmount"), SortBy.highestAmount, tempSort, setModalState, (val) { tempSort = val; }),
+                _buildSortRadio(AppStrings.getString("byNameSort"), SortBy.byName, tempSort, setModalState, (val) { tempSort = val; }),
+                _buildSortRadio(AppStrings.getString("oldestSort"), SortBy.oldest, tempSort, setModalState, (val) { tempSort = val; }),
+                _buildSortRadio(AppStrings.getString("leastAmount"), SortBy.leastAmount, tempSort, setModalState, (val) { tempSort = val; }),
                 const SizedBox(height: 22),
                 SizedBox(
                   width: double.infinity,
@@ -650,7 +629,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
                       Navigator.pop(context);
                     },
                     child: Text(
-                      toTitleCase("View Result"),
+                      AppStrings.getString("viewResult"),
                       style: const TextStyle(
                           color: Colors.white, fontWeight: FontWeight.w600),
                     ),
@@ -737,7 +716,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
                       const SizedBox(width: 10),
                       Flexible(
                         child: Text(
-                          toTitleCase(selectedCompanyName ?? "Select Company"),
+                          AppStrings.getString(selectedCompanyName ?? "selectCompany"),
                           style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w700,
@@ -789,7 +768,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
                           children: [
                             Expanded(
                               child: InfoCard(
-                                title: toTitleCase("You Will Give"),
+                                title: AppStrings.getString("youWillGive"),
                                 amount: "₹${formatCompactAmount(totalDebit)}",
                                 amountFontSize: 13,
                                 amountColor: Colors.red,
@@ -811,7 +790,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
                             SizedBox(width: 10),
                             Expanded(
                               child: InfoCard(
-                                title: toTitleCase("You Will Get"),
+                                title: AppStrings.getString("youWillGet"),
                                 amount: "₹${formatCompactAmount(totalCredit)}",
                                 amountFontSize: 13,
                                 amountColor: const Color(0xFF2D486C),
@@ -833,7 +812,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
                             SizedBox(width: 10),
                             Expanded(
                               child: InfoCard(
-                                title: toTitleCase("Balance"),
+                                title: AppStrings.getString("balance"),
                                 amount: "₹${formatCompactAmount(balance)}",
                                 amountFontSize: 13,
                                 amountColor: getBalanceColor(),
@@ -855,7 +834,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
                             if (selectedCompanyId == null) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text(toTitleCase("Please select a company first!")),
+                                  content: Text(AppStrings.getString("pleaseSelectCompanyFirst")),
                                 ),
                               );
                               return;
@@ -875,7 +854,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
                               const Icon(Icons.file_copy,
                                   size: 20, color: Colors.grey),
                               const SizedBox(width: 8),
-                              Text(toTitleCase("Get Report"),
+                              Text(AppStrings.getString("getReport"),
                                   style: const TextStyle(fontSize: 12)),
                             ],
                           ),
@@ -897,7 +876,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
                     child: TextField(
                       decoration: InputDecoration(
                         prefixIcon: const Icon(Icons.search),
-                        hintText: toTitleCase("Search Customer"),
+                        hintText: AppStrings.getString("searchCustomer"),
                         hintStyle: TextStyle(fontSize: kFontMedium),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
@@ -931,7 +910,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
                     ),
                     icon: const Icon(Icons.filter_alt_outlined, color: Color(0xFF205781)),
-                    label: Text(toTitleCase("Filters"), style: const TextStyle(color: Color(0xFF205781), fontWeight: FontWeight.w600)),
+                    label: Text(AppStrings.getString("filters"),
+                        style: const TextStyle(color: Color(0xFF205781), fontWeight: FontWeight.w600)),
                     onPressed: _showFilterBottomSheet,
                   ),
                 ),
@@ -949,7 +929,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
                   Icon(Icons.person_outline, size: 70, color: Colors.grey.withOpacity(0.7)),
                   const SizedBox(height: 12),
                   Text(
-                    toTitleCase("No customer available"),
+                    AppStrings.getString("noCustomerAvailable"),
                     style: TextStyle(fontSize: kFontLarge, color: Colors.grey[700]),
                   ),
                 ],
@@ -983,7 +963,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
                     }
                   },
                   child: CustomerTile(
-                    name: toTitleCase(name),
+                    name: name,
                     amount: "₹${formatCompactAmount(totalBalance)}",
                     lastUpdate: lastUpdateStr,
                     amountColor: getCustomerAmountColor(totalCreditAmount, totalDebitAmount),
@@ -1000,7 +980,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
           onTap: () {
             if (selectedCompanyId == null) {
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: Text(toTitleCase("Please select a company first!"))));
+                  content: Text(AppStrings.getString("pleaseSelectCompanyFirst"))));
               return;
             }
             Navigator.push(
@@ -1028,7 +1008,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
                 const Icon(Icons.person, color: Colors.white, size: 28),
                 const SizedBox(width: 12),
                 Text(
-                  toTitleCase("Add Customer"),
+                  AppStrings.getString("addCustomer"),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: kFontLarge,
@@ -1085,8 +1065,6 @@ class InfoCard extends StatelessWidget {
   }
 }
 
-// ...all your imports and code before CustomerTile stay the same...
-
 class CustomerTile extends StatelessWidget {
   final String name;
   final String amount;
@@ -1102,7 +1080,6 @@ class CustomerTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Set background color based on amountColor
     Color backgroundColor;
     if (amountColor == Colors.red) {
       backgroundColor = const Color(0xFFFFEBEE); // light red shade

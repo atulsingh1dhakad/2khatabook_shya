@@ -133,7 +133,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     icon: Icons.language,
                     label: "Change Language",
                     onTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => languagescreen(),))          ;          },
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => LanguagesScreen(onLanguageChanged: (String ) {  },),))          ;          },
                   ),
                   SidebarButton(
                     icon: Icons.attach_money,

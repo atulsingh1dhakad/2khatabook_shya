@@ -1,30 +1,70 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:restart_app/restart_app.dart';
 
-class languagescreen extends StatefulWidget {
-  const languagescreen({super.key});
+class LanguagesScreen extends StatefulWidget {
+  final Function(String) onLanguageChanged;
+
+  const LanguagesScreen({super.key, required this.onLanguageChanged});
 
   @override
-  State<languagescreen> createState() => _languagescreenState();
+  State<LanguagesScreen> createState() => _LanguagesScreenState();
 }
 
-class _languagescreenState extends State<languagescreen> {
+class _LanguagesScreenState extends State<LanguagesScreen> {
   final List<String> languages = [
-    'English (US)',
-    'English (UK)',
-    'French',
-    'German',
-    'Japanese',
+    'English',
+    'Hindi',
   ];
 
   int selectedIndex = 0;
+  bool isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSelectedLanguage();
+  }
+
+  String get selectedLangCode => selectedIndex == 0 ? 'en' : 'hi';
+
+  Future<void> _loadSelectedLanguage() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedLang = prefs.getString('selected_language_code') ?? 'en';
+    setState(() {
+      selectedIndex = savedLang == 'hi' ? 1 : 0;
+    });
+  }
+
+  Future<void> _persistSelectedLanguage(String langCode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('selected_language_code', langCode);
+  }
+
+  /// Save selected language, notify main.dart, pop to previous screen, then restart the app.
+  Future<void> _saveLanguage() async {
+    setState(() => isLoading = true);
+    await _persistSelectedLanguage(selectedLangCode);
+    widget.onLanguageChanged(selectedLangCode);
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Language updated successfully!')),
+    );
+
+    // Pop back to home and then restart app
+    Navigator.of(context).pop(); // Pop LanguagesScreen
+    // Short delay to ensure UI transition then restart
+    await Future.delayed(const Duration(milliseconds: 250));
+    Restart.restartApp();
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Colors from the screenshot
+    // Colors
     const background = Color(0xFFEAF2F4);
-    const card = Colors.white;
-    const accent = Color(0xFF265E85); // blue for selected
-    const darkText = Color(0xFF265E85); // dark text
+    const accent = Color(0xFF265E85);
+    const darkText = Color(0xFF265E85);
     const hintText = Color(0xFF6C8A93);
 
     return Scaffold(
@@ -32,7 +72,7 @@ class _languagescreenState extends State<languagescreen> {
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(60),
         child: AppBar(
-          backgroundColor: const Color(0xFF265E85),
+          backgroundColor: accent,
           leading: const BackButton(color: Colors.white),
           elevation: 0,
           title: const Text(
@@ -49,7 +89,6 @@ class _languagescreenState extends State<languagescreen> {
         child: Column(
           children: [
             const SizedBox(height: 20),
-            // Selected Language Section
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 18.0),
               child: Align(
@@ -76,7 +115,6 @@ class _languagescreenState extends State<languagescreen> {
               ),
             ),
             const SizedBox(height: 26),
-            // All Languages Header
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 18.0),
               child: Row(
@@ -91,20 +129,11 @@ class _languagescreenState extends State<languagescreen> {
                       fontFamily: "Poppins",
                     ),
                   ),
-                  Text(
-                    "See All",
-                    style: TextStyle(
-                      color: accent,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      fontFamily: "Poppins",
-                    ),
-                  ),
+                  const SizedBox(),
                 ],
               ),
             ),
             const SizedBox(height: 10),
-            // All Languages List
             Expanded(
               child: ListView.separated(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
@@ -121,7 +150,6 @@ class _languagescreenState extends State<languagescreen> {
                 ),
               ),
             ),
-            // Save Settings Button
             Padding(
               padding: const EdgeInsets.only(left: 18, right: 18, bottom: 24),
               child: SizedBox(
@@ -135,10 +163,12 @@ class _languagescreenState extends State<languagescreen> {
                     ),
                     elevation: 0,
                   ),
-                  onPressed: () {
-                    // Save logic here
-                  },
-                  child: Row(
+                  onPressed: isLoading ? null : _saveLanguage,
+                  child: isLoading
+                      ? const CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  )
+                      : Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
@@ -164,7 +194,6 @@ class _languagescreenState extends State<languagescreen> {
   }
 }
 
-// Language Card Widget
 class _LanguageCard extends StatelessWidget {
   final String language;
   final bool selected;
@@ -200,7 +229,6 @@ class _LanguageCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 14),
       child: Row(
         children: [
-          // Language Icon circle
           Container(
             width: 38,
             height: 38,
@@ -217,7 +245,6 @@ class _LanguageCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 15),
-          // Language Name
           Expanded(
             child: Text(
               language,
@@ -229,7 +256,6 @@ class _LanguageCard extends StatelessWidget {
               ),
             ),
           ),
-          // Radio circle
           Container(
             width: 24,
             height: 24,

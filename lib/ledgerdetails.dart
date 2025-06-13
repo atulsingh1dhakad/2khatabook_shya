@@ -4,6 +4,7 @@ import 'package:Calculator/presentation/youwillgive.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'LIST_LANG.dart'; // For localization (add this file for i18n/l10n support)
 
 const double kFontSmall = 14;
 const double kFontMedium = 16;
@@ -56,7 +57,7 @@ class _LedgerDetailsState extends State<LedgerDetails> {
     try {
       final authKey = await getAuthToken();
       if (authKey == null) {
-        throw Exception("Authentication token missing. Please log in.");
+        throw Exception(AppStrings.getString("authTokenMissing"));
       }
 
       final url = "http://account.galaxyex.xyz/v1/user/api//account/get-ledger/${widget.accountId}";
@@ -83,19 +84,19 @@ class _LedgerDetailsState extends State<LedgerDetails> {
           });
         } else {
           setState(() {
-            errorMessage = jsonData['meta']?['msg'] ?? "Failed to fetch entry";
+            errorMessage = jsonData['meta']?['msg'] ?? AppStrings.getString("failedToFetchEntry");
             isLoading = false;
           });
         }
       } else {
         setState(() {
-          errorMessage = "Server error: ${response.statusCode}";
+          errorMessage = "${AppStrings.getString("serverError")}: ${response.statusCode}";
           isLoading = false;
         });
       }
     } catch (e) {
       setState(() {
-        errorMessage = "Error: $e";
+        errorMessage = "${AppStrings.getString("error")}: $e";
         isLoading = false;
       });
     }
@@ -123,19 +124,19 @@ class _LedgerDetailsState extends State<LedgerDetails> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("Delete Entry"),
-        content: const Text("Are you sure you want to delete this entry? This action cannot be undone."),
+        title: Text(AppStrings.getString("deleteEntry")),
+        content: Text(AppStrings.getString("confirmDeleteEntry")),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text("Cancel"),
+            child: Text(AppStrings.getString("cancel")),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
             ),
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text("Delete", style: TextStyle(color: Colors.white)),
+            child: Text(AppStrings.getString("delete"), style: const TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -148,7 +149,7 @@ class _LedgerDetailsState extends State<LedgerDetails> {
   Future<void> deleteLedgerEntry() async {
     final authKey = await getAuthToken();
     if (authKey == null) {
-      _showSnackBar("Authentication token missing. Please log in.");
+      _showSnackBar(AppStrings.getString("authTokenMissing"));
       return;
     }
     final url = "http://account.galaxyex.xyz/v1/user/api/setting/remove-ledger/${widget.ledgerId}";
@@ -163,17 +164,17 @@ class _LedgerDetailsState extends State<LedgerDetails> {
       if (response.statusCode == 200) {
         final Map<String, dynamic> jsonData = json.decode(response.body);
         if (jsonData['meta']?['status'] == true) {
-          _showSnackBar("Entry deleted successfully");
+          _showSnackBar(AppStrings.getString("entryDeletedSuccessfully"));
           await Future.delayed(const Duration(milliseconds: 500));
           Navigator.of(context).pop(true);
         } else {
-          _showSnackBar(jsonData['meta']?['msg'] ?? "Failed to delete entry");
+          _showSnackBar(jsonData['meta']?['msg'] ?? AppStrings.getString("failedToDeleteEntry"));
         }
       } else {
-        _showSnackBar("Failed to delete entry, server error: ${response.statusCode}");
+        _showSnackBar("${AppStrings.getString("failedToDeleteEntry")}, ${AppStrings.getString("serverError")}: ${response.statusCode}");
       }
     } catch (e) {
-      _showSnackBar("Error deleting entry: $e");
+      _showSnackBar("${AppStrings.getString("errorDeletingEntry")}: $e");
     }
   }
 
@@ -195,9 +196,9 @@ class _LedgerDetailsState extends State<LedgerDetails> {
             icon: const Icon(Icons.arrow_back, color: Colors.white),
             onPressed: () => Navigator.pop(context),
           ),
-          title: const Text(
-            "Entry Details",
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+          title: Text(
+            AppStrings.getString("entryDetails"),
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
           ),
         ),
         body: isLoading
@@ -216,9 +217,9 @@ class _LedgerDetailsState extends State<LedgerDetails> {
                   child: OutlinedButton.icon(
                     onPressed: _confirmAndDelete,
                     icon: const Icon(Icons.delete, color: Colors.red, size: 18),
-                    label: const Text(
-                      "DELETE",
-                      style: TextStyle(
+                    label: Text(
+                      AppStrings.getString("delete").toUpperCase(),
+                      style: const TextStyle(
                         color: Colors.red,
                         fontWeight: FontWeight.w600,
                         fontSize: kFontMedium,
@@ -240,9 +241,9 @@ class _LedgerDetailsState extends State<LedgerDetails> {
                       // Implement share functionality
                     },
                     icon: const Icon(Icons.share, color: Colors.white, size: 18),
-                    label: const Text(
-                      "SHARE",
-                      style: TextStyle(
+                    label: Text(
+                      AppStrings.getString("share").toUpperCase(),
+                      style: const TextStyle(
                         fontSize: kFontMedium,
                         color: Colors.white,
                         fontWeight: FontWeight.w600,
@@ -292,11 +293,11 @@ class _LedgerDetailsState extends State<LedgerDetails> {
     double amountValue;
 
     if (youGot) {
-      amountLabel = "You will get";
+      amountLabel = AppStrings.getString("youWillGet");
       amountColor = const Color(0xFF205781);
       amountValue = credit;
     } else {
-      amountLabel = "You will give";
+      amountLabel = AppStrings.getString("youWillGive");
       amountColor = Colors.red;
       amountValue = debit;
     }
@@ -307,11 +308,7 @@ class _LedgerDetailsState extends State<LedgerDetails> {
     final totalBalance = accountTotals['totalBalance'] ?? "";
 
     final String? imageUrl = entry['path'] as String?;
-    if (imageUrl != null) {
-      print("Attachment URL: $imageUrl");
-    }
 
-    // Decide running balance color: blue if positive, red if negative/zero.
     final runningBalanceColor =
     runningBalance > 0 ? const Color(0xFF205781) : Colors.red;
 
@@ -386,9 +383,9 @@ class _LedgerDetailsState extends State<LedgerDetails> {
                           if (imageUrl != null && imageUrl.isNotEmpty) ...[
                             Divider(),
                             const SizedBox(height: 18),
-                            const Text(
-                              "Photo Attachments",
-                              style: TextStyle(
+                            Text(
+                              AppStrings.getString("photoAttachments"),
+                              style: const TextStyle(
                                 fontWeight: FontWeight.w500,
                                 fontSize: 12,
                                 color: Colors.black87,
@@ -422,9 +419,9 @@ class _LedgerDetailsState extends State<LedgerDetails> {
                           const SizedBox(height: 15),
                           Row(
                             children: [
-                              const Text(
-                                "Running Balance",
-                                style: TextStyle(fontSize: 15),
+                              Text(
+                                AppStrings.getString("runningBalance"),
+                                style: const TextStyle(fontSize: 15),
                               ),
                               const Spacer(),
                               Text(
@@ -483,9 +480,9 @@ class _LedgerDetailsState extends State<LedgerDetails> {
                                 }
                               },
                               icon: const Icon(Icons.edit, color: Color(0xFF265E85), size: 18),
-                              label: const Text(
-                                "EDIT ENTRY",
-                                style: TextStyle(
+                              label: Text(
+                                AppStrings.getString("editEntry").toUpperCase(),
+                                style: const TextStyle(
                                   color: Color(0xFF265E85),
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -519,9 +516,9 @@ class _LedgerDetailsState extends State<LedgerDetails> {
                     child: const Icon(Icons.verified, color: Color(0xFF198754), size: 18),
                   ),
                   const SizedBox(width: 8),
-                  const Text(
-                    "100% Safe and Secure",
-                    style: TextStyle(
+                  Text(
+                    AppStrings.getString("safeAndSecure"),
+                    style: const TextStyle(
                       color: Color(0xFF198754),
                       fontWeight: FontWeight.w700,
                       fontSize: 15,

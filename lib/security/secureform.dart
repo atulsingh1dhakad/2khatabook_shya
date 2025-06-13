@@ -5,9 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
+import '../LIST_LANG.dart';
 
 // --- Color Theme Based On Image --- //
-const Color kPrimaryBlue = Color(0xFF225B84); // AppBar and button border
+const Color kPrimaryBlue = Color(0xFF225B84);
 const Color kButtonText = Color(0xFF225B84);
 const Color kBackground = Colors.white;
 const Color kButtonBorder = Color(0xFF225B84);
@@ -36,7 +37,7 @@ class _SecurityPinScreenState extends State<SecurityPinScreen> {
   void initState() {
     super.initState();
     _loadSecurityStatus();
-    _fetchSecurityPin(); // Try to fetch existing security pin on load
+    _fetchSecurityPin();
   }
 
   Future<String?> getAuthToken() async {
@@ -73,7 +74,6 @@ class _SecurityPinScreenState extends State<SecurityPinScreen> {
             pinController.text = _savedPin?.toString() ?? "";
           });
         } else {
-          // If there is no security pin, reset everything
           setState(() {
             _savedPin = null;
             _securityEnabled = false;
@@ -82,17 +82,13 @@ class _SecurityPinScreenState extends State<SecurityPinScreen> {
           });
         }
       }
-    } catch (e) {
-      // Optionally handle fetch errors, but do not show to user on load
-      print("Fetch security pin error: $e");
-    }
+    } catch (_) {}
   }
 
   void _toggleSecurity(bool value) async {
     setState(() {
       _securityEnabled = value;
       _errorMsg = null;
-      // If turning off, clear pin and UI
       if (!value) {
         pinController.clear();
         changePinController.clear();
@@ -103,10 +99,8 @@ class _SecurityPinScreenState extends State<SecurityPinScreen> {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     prefs.setBool("security_enabled", value);
 
-    // If turned off, remove security from backend
     if (!value) {
       await _removeSecurityPin();
-      // Always re-fetch after attempting removal to sync with backend
       await _fetchSecurityPin();
     }
   }
@@ -116,7 +110,6 @@ class _SecurityPinScreenState extends State<SecurityPinScreen> {
     if (authToken == null) return;
     final url = Uri.parse("http://account.galaxyex.xyz/v1/user/api/setting/remove-security");
     try {
-      // Use GET instead of POST as per your request
       final res = await http.get(
         url,
         headers: {
@@ -124,7 +117,6 @@ class _SecurityPinScreenState extends State<SecurityPinScreen> {
           "Content-Type": "application/json",
         },
       );
-      print("Remove security response: ${res.statusCode}, ${res.body}");
       if (res.statusCode == 200) {
         setState(() {
           _savedPin = null;
@@ -132,19 +124,18 @@ class _SecurityPinScreenState extends State<SecurityPinScreen> {
           pinController.clear();
           changePinController.clear();
         });
-        _showSnackBar("Security number removed.");
+        _showSnackBar(AppStrings.getString("securityRemoved"));
       } else {
         setState(() {
-          _errorMsg = "Failed to remove security code. Please try again.";
+          _errorMsg = AppStrings.getString("failedToRemoveSecurity");
         });
-        _showSnackBar("Failed to remove security code. Please try again.");
+        _showSnackBar(AppStrings.getString("failedToRemoveSecurity"));
       }
-    } catch (e) {
-      print("Remove security exception: $e");
+    } catch (_) {
       setState(() {
-        _errorMsg = "Failed to remove security code. Please try again.";
+        _errorMsg = AppStrings.getString("failedToRemoveSecurity");
       });
-      _showSnackBar("Failed to remove security code. Please try again.");
+      _showSnackBar(AppStrings.getString("failedToRemoveSecurity"));
     }
   }
 
@@ -164,46 +155,45 @@ class _SecurityPinScreenState extends State<SecurityPinScreen> {
     if (pin.isEmpty || int.tryParse(pin) == null) {
       setState(() {
         if (isChange) {
-          _changeErrorMsg = "Security number must be a number";
+          _changeErrorMsg = AppStrings.getString("securityNumberMustBeNumber");
           isChanging = false;
         } else {
-          _errorMsg = "Security number must be a number";
+          _errorMsg = AppStrings.getString("securityNumberMustBeNumber");
           isLoading = false;
         }
       });
-      _showSnackBar("Security number must be a number");
+      _showSnackBar(AppStrings.getString("securityNumberMustBeNumber"));
       return;
     }
 
-    // Limit to 19 digits (safe for 64-bit int backend)
     if (pin.length > 19) {
       setState(() {
         if (isChange) {
-          _changeErrorMsg = "Security number is too long";
+          _changeErrorMsg = AppStrings.getString("securityNumberTooLong");
           isChanging = false;
         } else {
-          _errorMsg = "Security number is too long";
+          _errorMsg = AppStrings.getString("securityNumberTooLong");
           isLoading = false;
         }
       });
-      _showSnackBar("Security number is too long");
+      _showSnackBar(AppStrings.getString("securityNumberTooLong"));
       return;
     }
 
     int parsedPin;
     try {
       parsedPin = int.parse(pin);
-    } catch (e) {
+    } catch (_) {
       setState(() {
         if (isChange) {
-          _changeErrorMsg = "Security number is invalid or too large";
+          _changeErrorMsg = AppStrings.getString("securityNumberInvalidOrLarge");
           isChanging = false;
         } else {
-          _errorMsg = "Security number is invalid or too large";
+          _errorMsg = AppStrings.getString("securityNumberInvalidOrLarge");
           isLoading = false;
         }
       });
-      _showSnackBar("Security number is invalid or too large");
+      _showSnackBar(AppStrings.getString("securityNumberInvalidOrLarge"));
       return;
     }
 
@@ -212,14 +202,14 @@ class _SecurityPinScreenState extends State<SecurityPinScreen> {
     if (authToken == null || authToken.isEmpty) {
       setState(() {
         if (isChange) {
-          _changeErrorMsg = "Authentication error. Please log in again.";
+          _changeErrorMsg = AppStrings.getString("authErrorRelogin");
           isChanging = false;
         } else {
-          _errorMsg = "Authentication error. Please log in again.";
+          _errorMsg = AppStrings.getString("authErrorRelogin");
           isLoading = false;
         }
       });
-      _showSnackBar("Authentication error. Please log in again.");
+      _showSnackBar(AppStrings.getString("authErrorRelogin"));
       return;
     }
 
@@ -244,14 +234,8 @@ class _SecurityPinScreenState extends State<SecurityPinScreen> {
       try {
         data = jsonDecode(res.body);
         serverMsg = data["meta"]?["msg"]?.toString() ?? "";
-      } catch (e) {
+      } catch (_) {
         serverMsg = "Invalid server response: ${res.body}";
-      }
-
-      print("API Response Status: ${res.statusCode}");
-      print("API Response Body: ${res.body}");
-      if (serverMsg.isNotEmpty) {
-        print("API Error Message: $serverMsg");
       }
 
       if (res.statusCode == 200 && data?["meta"]?["status"] == true) {
@@ -265,9 +249,11 @@ class _SecurityPinScreenState extends State<SecurityPinScreen> {
           pinController.text = parsedPin.toString();
           changePinController.clear();
         });
-        _showSnackBar(isChange ? "Security number changed successfully." : "Security number saved successfully.");
+        _showSnackBar(isChange
+            ? AppStrings.getString("securityNumberChanged")
+            : AppStrings.getString("securityNumberSaved"));
       } else {
-        String errorDetail = "Failed to save security number";
+        String errorDetail = AppStrings.getString("failedToSaveSecurityNumber");
         if (serverMsg.isNotEmpty) errorDetail = serverMsg;
         errorDetail += " (HTTP ${res.statusCode})";
         setState(() {
@@ -282,17 +268,16 @@ class _SecurityPinScreenState extends State<SecurityPinScreen> {
         _showSnackBar(errorDetail);
       }
     } catch (e) {
-      print("Exception during API call: $e");
       setState(() {
         if (isChange) {
-          _changeErrorMsg = "Error: ${e.toString()}";
+          _changeErrorMsg = "${AppStrings.getString("error")}: ${e.toString()}";
           isChanging = false;
         } else {
-          _errorMsg = "Error: ${e.toString()}";
+          _errorMsg = "${AppStrings.getString("error")}: ${e.toString()}";
           isLoading = false;
         }
       });
-      _showSnackBar("Error: ${e.toString()}");
+      _showSnackBar("${AppStrings.getString("error")}: ${e.toString()}");
     }
   }
 
@@ -325,7 +310,7 @@ class _SecurityPinScreenState extends State<SecurityPinScreen> {
           CupertinoTextField(
             controller: controller,
             placeholder: placeholder,
-            obscureText: false, // Always visible
+            obscureText: false,
             enabled: enabled,
             keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
@@ -346,16 +331,18 @@ class _SecurityPinScreenState extends State<SecurityPinScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Text(
-          'Security is ',
-          style: TextStyle(
+        Text(
+          '${AppStrings.getString("securityIs")} ',
+          style: const TextStyle(
             fontSize: 17,
             color: kPrimaryBlue,
             fontWeight: FontWeight.w500,
           ),
         ),
         Text(
-          _securityEnabled ? 'ON' : 'OFF',
+          _securityEnabled
+              ? AppStrings.getString("on")
+              : AppStrings.getString("off"),
           style: TextStyle(
             fontSize: 17,
             fontWeight: FontWeight.bold,
@@ -379,8 +366,8 @@ class _SecurityPinScreenState extends State<SecurityPinScreen> {
       children: [
         _pinField(
           controller: changePinController,
-          label: "Change Security Number",
-          placeholder: "Enter new security number",
+          label: AppStrings.getString("changeSecurityNumber"),
+          placeholder: AppStrings.getString("enterNewSecurityNumber"),
           enabled: true,
         ),
         if (_changeErrorMsg != null)
@@ -408,7 +395,7 @@ class _SecurityPinScreenState extends State<SecurityPinScreen> {
               textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
             ),
             onPressed: () => _savePin(isChange: true),
-            child: const Text("Change Security Number"),
+            child: Text(AppStrings.getString("changeSecurityNumber")),
           ),
         ),
       ],
@@ -432,7 +419,7 @@ class _SecurityPinScreenState extends State<SecurityPinScreen> {
           textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
         ),
         onPressed: () => _savePin(),
-        child: const Text("Save Security Number"),
+        child: Text(AppStrings.getString("saveSecurityNumber")),
       ),
     );
   }
@@ -447,9 +434,9 @@ class _SecurityPinScreenState extends State<SecurityPinScreen> {
           color: Colors.white,
         ),
         elevation: 0,
-        title: const Text(
-          "Security Number",
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+        title: Text(
+          AppStrings.getString("securityNumber"),
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
         ),
         centerTitle: true,
         shape: const RoundedRectangleBorder(
@@ -473,8 +460,8 @@ class _SecurityPinScreenState extends State<SecurityPinScreen> {
                     children: [
                       _pinField(
                         controller: pinController,
-                        label: "Security Number",
-                        placeholder: "Enter your Number",
+                        label: AppStrings.getString("securityNumber"),
+                        placeholder: AppStrings.getString("enterYourNumber"),
                         enabled: true,
                       ),
                       if (_errorMsg != null)
@@ -496,7 +483,7 @@ class _SecurityPinScreenState extends State<SecurityPinScreen> {
                         Padding(
                           padding: const EdgeInsets.only(bottom: 16.0),
                           child: Text(
-                            "Your security code: $_savedPin",
+                            "${AppStrings.getString("yourSecurityCode")}: $_savedPin",
                             style: const TextStyle(
                                 color: kPrimaryBlue,
                                 fontSize: 18,

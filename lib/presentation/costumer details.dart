@@ -4,11 +4,13 @@ import 'package:Calculator/presentation/sidebarscreen.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../LIST_LANG.dart';
 import '../ledgerdetails.dart';
 import 'youwillgive.dart';
 import 'youwillget.dart';
 import 'Addcustomerscreen.dart';
 import '../../main.dart';
+// If you use a helper: import '../../localized_string.dart';
 
 const double kFontVerySmall = 10;
 const double kFontSmall = 13;
@@ -238,7 +240,6 @@ class _CustomerDetailsState extends State<CustomerDetails>
         ? "-₹${runningBalance.abs().toStringAsFixed(2)}"
         : "₹${runningBalance.toStringAsFixed(2)}");
 
-    // Fetch the attachment url from the field "path" (single image/file per entry)
     final String? imageUrl = entry['path'] as String?;
     if (imageUrl != null && imageUrl.isNotEmpty) {
       print("Ledger Attachment URL: $imageUrl");
@@ -455,15 +456,15 @@ class _CustomerDetailsState extends State<CustomerDetails>
     double displayAmount;
 
     if (balance < 0) {
-      label = "You Will Give ";
+      label = AppStrings.getString(AppStrings.youWillGive);
       amountTextColor = Colors.red;
       displayAmount = -balance;
     } else if (balance > 0) {
-      label = "You Will Get";
+      label = AppStrings.getString(AppStrings.youWillGet);
       amountTextColor = const Color(0xFF198754);
       displayAmount = balance;
     } else {
-      label = "Settled Up";
+      label = AppStrings.getString("settledUp"); // Ensure this key is in your AppStrings maps
       amountTextColor = Colors.grey;
       displayAmount = 0.0;
     }
@@ -496,7 +497,7 @@ class _CustomerDetailsState extends State<CustomerDetails>
                           child: Text(
                             accountName.isNotEmpty
                                 ? accountName
-                                : "Loading...",
+                                : AppStrings.getString("loading"), // add "loading" key if you want localized
                             style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 20,
@@ -596,7 +597,7 @@ class _CustomerDetailsState extends State<CustomerDetails>
                   Expanded(
                     flex: 6,
                     child: Text(
-                      "Date/Remark",
+                      AppStrings.getString("dateRemark"), // Add "dateRemark" key to AppStrings
                       style: TextStyle(
                         fontSize: kFontVerySmall,
                         color: Colors.grey[600],
@@ -613,7 +614,7 @@ class _CustomerDetailsState extends State<CustomerDetails>
                           width: 70,
                           alignment: Alignment.centerLeft,
                           child: Text(
-                            "You Gave",
+                            AppStrings.getString(AppStrings.youGive),
                             style: TextStyle(
                               fontSize: kFontVerySmall,
                               color: const Color(0xffc96868),
@@ -625,7 +626,7 @@ class _CustomerDetailsState extends State<CustomerDetails>
                           width: 60,
                           alignment: Alignment.centerRight,
                           child: Text(
-                            "You Get",
+                            AppStrings.getString(AppStrings.youGet),
                             style: TextStyle(
                               fontSize: kFontVerySmall,
                               color: const Color(0xFF198754),
@@ -652,7 +653,7 @@ class _CustomerDetailsState extends State<CustomerDetails>
                           color: Colors.grey.withOpacity(0.7)),
                       const SizedBox(height: 12),
                       Text(
-                        "No entry available, add now",
+                        AppStrings.getString("noEntryAvailable"), // Add this key to AppStrings
                         style: TextStyle(
                             fontSize: kFontLarge,
                             color: Colors.grey[700]),
@@ -705,9 +706,9 @@ class _CustomerDetailsState extends State<CustomerDetails>
                             borderRadius: BorderRadius.circular(7),
                           ),
                         ),
-                        child: const Text(
-                          "You Give",
-                          style: TextStyle(
+                        child: Text(
+                          AppStrings.getString(AppStrings.youGive),
+                          style: const TextStyle(
                               fontSize: kFontLarge,
                               color: Colors.white),
                         ),
@@ -738,9 +739,9 @@ class _CustomerDetailsState extends State<CustomerDetails>
                             borderRadius: BorderRadius.circular(7),
                           ),
                         ),
-                        child: const Text(
-                          "You Get",
-                          style: TextStyle(
+                        child: Text(
+                          AppStrings.getString(AppStrings.youGet),
+                          style: const TextStyle(
                               fontSize: kFontLarge,
                               color: Colors.white),
                         ),

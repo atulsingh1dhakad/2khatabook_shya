@@ -49,6 +49,10 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
   bool _showCursor = true;
   Timer? _cursorTimer;
 
+  // Focus management
+  bool _isAmountFocused = false; // Initially not focused
+  late FocusNode _remarkFocusNode;
+
   @override
   void initState() {
     super.initState();
@@ -57,21 +61,49 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
     _calcDisplay = widget.editDebit != null ? "${widget.editDebit} = ${widget.editDebit}" : "";
     _remarkController = TextEditingController(text: widget.editRemark ?? "");
     _selectedDate = widget.editDate ?? DateTime.now();
+
+    _remarkFocusNode = FocusNode();
+    _remarkFocusNode.addListener(_onRemarkFocusChange);
     _startCursorTimer();
+  }
+
+  void _onRemarkFocusChange() {
+    if (_remarkFocusNode.hasFocus) {
+      setState(() {
+        _isAmountFocused = false;
+      });
+    }
+  }
+
+  void _onAmountTap() {
+    if (!_isAmountFocused) {
+      setState(() {
+        _isAmountFocused = true;
+      });
+      _remarkFocusNode.unfocus();
+      FocusScope.of(context).unfocus();
+    }
   }
 
   void _startCursorTimer() {
     _cursorTimer?.cancel();
     _cursorTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
-      setState(() {
-        _showCursor = !_showCursor;
-      });
+      if (_isAmountFocused) {
+        setState(() {
+          _showCursor = !_showCursor;
+        });
+      } else {
+        setState(() {
+          _showCursor = false;
+        });
+      }
     });
   }
 
   @override
   void dispose() {
     _cursorTimer?.cancel();
+    _remarkFocusNode.dispose();
     _remarkController.dispose();
     super.dispose();
   }
@@ -304,9 +336,13 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
 
   @override
   Widget build(BuildContext context) {
+    // Updated preview logic: show as soon as an operator is present or at end
     final bool showPreview = _calcRawInput.isNotEmpty &&
         _calcDisplay.isNotEmpty &&
-        RegExp(r'[+\-*/×÷]').hasMatch(_calcRawInput);
+        (
+            RegExp(r'[+\-*/×÷]').hasMatch(_calcRawInput) ||
+                RegExp(r'[+\-*/×÷%]$').hasMatch(_calcRawInput)
+        );
 
     return Scaffold(
       resizeToAvoidBottomInset: true,
@@ -323,80 +359,89 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
           key: _formKey,
           child: Column(
             children: [
-              AnimatedSize(
-                duration: Duration(milliseconds: 200),
-                curve: Curves.ease,
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 4),
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 20),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    border: Border.all(color: Colors.red.shade200),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          const Text("₹ ",
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 22,
-                                  color: Colors.red)),
-                          Expanded(
-                            child: Row(
-                              children: [
-                                Text(
-                                  _calcRawInput.isEmpty
-                                      ? ""
-                                      : _calcRawInput,
-                                  style: TextStyle(
+              GestureDetector(
+                onTap: _onAmountTap,
+                child: AnimatedSize(
+                  duration: Duration(milliseconds: 200),
+                  curve: Curves.ease,
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 4),
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 20),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      border: Border.all(color: Colors.red.shade200),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            const Text("₹ ",
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
                                     fontSize: 22,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.red,
-                                  ),
-                                ),
-                                if (_showCursor)
-                                  AnimatedOpacity(
-                                    opacity: 1,
-                                    duration: const Duration(milliseconds: 200),
-                                    child: Container(
-                                      width: 2,
-                                      height: 26,
-                                      margin: const EdgeInsets.only(left: 2),
+                                    color: Colors.red)),
+                            Expanded(
+                              child: Row(
+                                children: [
+                                  Text(
+                                    _calcRawInput.isEmpty
+                                        ? ""
+                                        : _calcRawInput,
+                                    style: TextStyle(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.w600,
                                       color: Colors.red,
                                     ),
                                   ),
-                              ],
+                                  if (_isAmountFocused && _showCursor)
+                                    AnimatedOpacity(
+                                      opacity: 1,
+                                      duration: const Duration(milliseconds: 200),
+                                      child: Container(
+                                        width: 2,
+                                        height: 26,
+                                        margin: const EdgeInsets.only(left: 2),
+                                        color: Colors.red,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (showPreview)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8.0, left: 3),
+                            child: Text(
+                              _calcDisplay,
+                              style: const TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.black54,
+                                  fontWeight: FontWeight.w500),
                             ),
                           ),
-                        ],
-                      ),
-                      if (showPreview)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8.0, left: 3),
-                          child: Text(
-                            _calcDisplay,
-                            style: const TextStyle(
-                                fontSize: 16,
-                                color: Colors.black54,
-                                fontWeight: FontWeight.w500),
-                          ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
               const SizedBox(height: 6),
               TextFormField(
                 controller: _remarkController,
+                focusNode: _remarkFocusNode,
                 decoration: const InputDecoration(
                   hintText: 'Remark',
                   border: OutlineInputBorder(),
                   contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                 ),
+                onTap: () {
+                  setState(() {
+                    _isAmountFocused = false;
+                  });
+                },
               ),
               const SizedBox(height: 10),
               Row(
@@ -459,12 +504,13 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          CalculatorPanel(
-            initialInput: _calcRawInput,
-            accentColor: Colors.red,
-            onChanged: _onCalculatorChanged,
-            onDone: () {},
-          ),
+          if (_isAmountFocused)
+            CalculatorPanel(
+              initialInput: _calcRawInput,
+              accentColor: Colors.red,
+              onChanged: _onCalculatorChanged,
+              onDone: () {},
+            ),
           Padding(
             padding: const EdgeInsets.all(15.0),
             child: SizedBox(

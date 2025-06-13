@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../LIST_LANG.dart';
 
 class AddCompanyPage extends StatefulWidget {
   final String? companyId;
@@ -36,9 +37,7 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
     final prefs = await SharedPreferences.getInstance();
     final authKey = prefs.getString("auth_token");
 
-    final url = isEdit
-        ? Uri.parse('http://account.galaxyex.xyz/v1/user/api/account/add-company')
-        : Uri.parse('http://account.galaxyex.xyz/v1/user/api/account/add-company');
+    final url = Uri.parse('http://account.galaxyex.xyz/v1/user/api/account/add-company');
 
     final body = isEdit
         ? {
@@ -60,11 +59,15 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
       );
       if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(isEdit ? 'Company updated successfully!' : 'Company created successfully!')),
+          SnackBar(content: Text(isEdit
+              ? AppStrings.getString("companyUpdatedSuccessfully")
+              : AppStrings.getString("companyCreatedSuccessfully"))),
         );
         Navigator.pop(context, true);
       } else {
-        String msg = isEdit ? "Failed to update company" : "Failed to create company";
+        String msg = isEdit
+            ? AppStrings.getString("failedToUpdateCompany")
+            : AppStrings.getString("failedToCreateCompany");
         try {
           final respJson = json.decode(response.body);
           if (respJson['meta'] != null && respJson['meta']['msg'] != null) {
@@ -77,7 +80,7 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
+        SnackBar(content: Text('${AppStrings.getString("error")}: $e')),
       );
     } finally {
       setState(() {
@@ -95,7 +98,9 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
           color: Colors.white,
         ),
         title: Text(
-          isEdit ? 'Edit Company' : 'Add Company',
+          isEdit
+              ? AppStrings.getString("editCompany")
+              : AppStrings.getString("addCompany"),
           style: const TextStyle(color: Colors.white),
         ),
         backgroundColor: const Color(0xFF23608A),
@@ -108,13 +113,13 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
             children: [
               TextFormField(
                 controller: _nameController,
-                decoration: const InputDecoration(
-                  hintText: 'Company Name',
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                decoration: InputDecoration(
+                  hintText: AppStrings.getString("companyName"),
+                  border: const OutlineInputBorder(),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                 ),
                 validator: (value) => value == null || value.trim().isEmpty
-                    ? 'Enter company name'
+                    ? AppStrings.getString("enterCompanyName")
                     : null,
               ),
               const SizedBox(height: 10),
@@ -137,7 +142,9 @@ class _AddCompanyPageState extends State<AddCompanyPage> {
             onPressed: _isLoading ? null : _submitCompany,
             icon: Icon(isEdit ? Icons.edit : Icons.add, color: Colors.white),
             label: Text(
-              isEdit ? 'Update Company' : 'Add Company',
+              isEdit
+                  ? AppStrings.getString("updateCompany")
+                  : AppStrings.getString("addCompany"),
               style: const TextStyle(color: Colors.white),
             ),
             style: ElevatedButton.styleFrom(

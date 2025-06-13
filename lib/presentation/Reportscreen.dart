@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import '../LIST_LANG.dart';
 
 class ReportScreen extends StatefulWidget {
   final String? companyId;
@@ -34,13 +35,12 @@ class _ReportScreenState extends State<ReportScreen> {
       final authKey = prefs.getString("auth_token");
       if (authKey == null) {
         setState(() {
-          errorMessage = "Authentication token missing. Please log in.";
+          errorMessage = AppStrings.getString("authTokenMissing");
           isLoading = false;
         });
         return;
       }
 
-      // Append companyId if provided
       final url =
           "http://account.galaxyex.xyz/v1/user/api/user/get-report${widget.companyId != null ? '?companyId=${widget.companyId}' : ''}";
       final response = await http.get(
@@ -62,19 +62,19 @@ class _ReportScreenState extends State<ReportScreen> {
           });
         } else {
           setState(() {
-            errorMessage = jsonData['meta']?['msg'] ?? "Failed to fetch report";
+            errorMessage = jsonData['meta']?['msg'] ?? AppStrings.getString("failedToFetchReport");
             isLoading = false;
           });
         }
       } else {
         setState(() {
-          errorMessage = "Server error: ${response.statusCode}";
+          errorMessage = "${AppStrings.getString("serverError")}: ${response.statusCode}";
           isLoading = false;
         });
       }
     } catch (e) {
       setState(() {
-        errorMessage = "Error: $e";
+        errorMessage = "${AppStrings.getString("error")}: $e";
         isLoading = false;
       });
     }
@@ -111,18 +111,17 @@ class _ReportScreenState extends State<ReportScreen> {
   String formatCompactAmount(num? amount) {
     if (amount == null) return "-";
     if (amount.abs() >= 10000000) {
-      return "${(amount / 10000000).toStringAsFixed(amount % 10000000 == 0 ? 0 : 2)}Cr";
+      return "${(amount / 10000000).toStringAsFixed(amount % 10000000 == 0 ? 0 : 2)}${AppStrings.getString("CR")}";
     } else if (amount.abs() >= 100000) {
-      return "${(amount / 100000).toStringAsFixed(amount % 100000 == 0 ? 0 : 2)}L";
+      return "${(amount / 100000).toStringAsFixed(amount % 100000 == 0 ? 0 : 2)}${AppStrings.getString("L")}";
     } else if (amount.abs() >= 1000) {
-      return "${(amount / 1000).toStringAsFixed(amount % 1000 == 0 ? 0 : 1)}K";
+      return "${(amount / 1000).toStringAsFixed(amount % 1000 == 0 ? 0 : 1)}${AppStrings.getString("K")}";
     } else {
       return amount.toStringAsFixed(2);
     }
   }
 
   /// Compute running balance as per CustomerDetails logic, for the report.
-  /// This will return a list of balances, one for each entry.
   List<double?> runningBalances() {
     double sum = 0;
     List<double?> balances = List.filled(ledgerList.length, null);
@@ -140,7 +139,6 @@ class _ReportScreenState extends State<ReportScreen> {
     final giveColor = Colors.red[700]!;
     final getColor = const Color(0xFF205781);
 
-    // Calculate balance color and value
     double totalDebit = double.tryParse(totals['totalDebitAmount']?.toString() ?? "0") ?? 0;
     double totalCredit = double.tryParse(totals['totalCreditAmount']?.toString() ?? "0") ?? 0;
     double balance = double.tryParse(totals['totalBalance']?.toString() ?? "0") ?? 0;
@@ -151,7 +149,7 @@ class _ReportScreenState extends State<ReportScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          toTitleCase('report'),
+          AppStrings.getString('report'),
           style: const TextStyle(color: Colors.white),
         ),
         backgroundColor: const Color(0xFF22587a),
@@ -178,7 +176,7 @@ class _ReportScreenState extends State<ReportScreen> {
           ),
           Expanded(
             child: ledgerList.isEmpty
-                ? Center(child: Text(toTitleCase("no records")))
+                ? Center(child: Text(AppStrings.getString("noRecords")))
                 : ListView.separated(
               separatorBuilder: (_, __) =>
               const Divider(height: 0),
@@ -198,7 +196,6 @@ class _ReportScreenState extends State<ReportScreen> {
 
                 final amountColor = isCredit ? getColor : giveColor;
 
-                // Use computed running balance
                 final balNum = runningBalancesList[index];
                 final runningBalanceProper = balNum != null && balNum.isFinite;
 
@@ -254,9 +251,9 @@ class _ReportScreenState extends State<ReportScreen> {
                           ),
                         ),
                         if (!runningBalanceProper)
-                          const Text(
-                            "Running balance not proper",
-                            style: TextStyle(
+                          Text(
+                            AppStrings.getString("runningBalanceNotProper"),
+                            style: const TextStyle(
                                 fontSize: 12,
                                 color: Colors.orange,
                                 fontWeight: FontWeight.w500),
@@ -311,7 +308,7 @@ class _ReportScreenState extends State<ReportScreen> {
               child: Column(
                 children: [
                   Text(
-                    toTitleCase("you will give"),
+                    AppStrings.getString("youWillGive"),
                     style: const TextStyle(
                         fontSize: 13, color: Colors.black87),
                   ),
@@ -321,7 +318,7 @@ class _ReportScreenState extends State<ReportScreen> {
                     style: TextStyle(
                         color: giveColor,
                         fontWeight: FontWeight.w600,
-                        fontSize: 13 // Small font for amount
+                        fontSize: 13
                     ),
                   ),
                 ],
@@ -335,7 +332,7 @@ class _ReportScreenState extends State<ReportScreen> {
               child: Column(
                 children: [
                   Text(
-                    toTitleCase("you will get"),
+                    AppStrings.getString("youWillGet"),
                     style: const TextStyle(
                         fontSize: 13, color: Colors.black87),
                   ),
@@ -358,7 +355,7 @@ class _ReportScreenState extends State<ReportScreen> {
               child: Column(
                 children: [
                   Text(
-                    toTitleCase("balance"),
+                    AppStrings.getString("balance"),
                     style: const TextStyle(
                         fontSize: 13, color: Colors.black87),
                   ),

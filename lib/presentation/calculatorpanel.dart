@@ -33,6 +33,8 @@ class _CalculatorPanelState extends State<CalculatorPanel> {
 
   void _calculatePreview({bool notify = true}) {
     final hasOperator = RegExp(r'[+\-*/×÷]').hasMatch(_input);
+    final endsWithOperator = RegExp(r'[+\-*/×÷%]$').hasMatch(_input);
+
     try {
       if (_input.isEmpty) {
         _preview = "";
@@ -40,46 +42,32 @@ class _CalculatorPanelState extends State<CalculatorPanel> {
         if (notify && mounted) widget.onChanged(_input, _preview, _result);
         return;
       }
+
       String preparedInput = _handlePercent(_input);
       Parser p = Parser();
       Expression exp = p.parse(preparedInput.replaceAll('×', '*').replaceAll('÷', '/'));
       double eval = exp.evaluate(EvaluationType.REAL, ContextModel());
-      _preview = hasOperator ? "$_input = $eval" : "";
+
+      if (hasOperator || endsWithOperator) {
+        _preview = "$_input = $eval";
+      } else {
+        _preview = "";
+      }
+
       _result = eval;
       if (notify && mounted) widget.onChanged(_input, _preview, _result);
     } catch (_) {
+      if (notify && mounted) widget.onChanged(_input, "", null);
       _preview = "";
       _result = null;
-      if (notify && mounted) widget.onChanged(_input, _preview, _result);
     }
   }
 
   String _handlePercent(String input) {
-    String out = input;
-    out = out.replaceAllMapped(
-      RegExp(r'(\d+(\.\d+)?)([+\-*/])(\d+(\.\d+)?)%'),
-          (match) {
-        final first = match.group(1)!;
-        final op = match.group(3)!;
-        final percent = match.group(4)!;
-        return '$first$op($first*$percent/100)';
-      },
+    return input.replaceAllMapped(
+      RegExp(r'(\d+(\.\d+)?)%'),
+          (match) => '(${match.group(1)}/100)',
     );
-    out = out.replaceAllMapped(
-      RegExp(r'^(\d+(\.\d+)?)%$'),
-          (match) => '(${match.group(1)})/100',
-    );
-    out = out.replaceAllMapped(
-      RegExp(r'([+\-*/])(\d+(\.\d+)?)%'),
-          (match) {
-        final op = match.group(1)!;
-        final prevMatch = RegExp(r'(\d+(\.\d+)?)(?=[+\-*/][^+\-*/]*$)').firstMatch(out);
-        final base = prevMatch != null ? prevMatch.group(1)! : "0";
-        final percent = match.group(2)!;
-        return '$op($base*$percent/100)';
-      },
-    );
-    return out;
   }
 
   void _onPressed(String text) {
@@ -93,23 +81,23 @@ class _CalculatorPanelState extends State<CalculatorPanel> {
         _calculatePreview();
       } else if (text == "=") {
         _calculatePreview();
-        _justEvaluated = true;
         if (_result != null) {
           String resultStr = _result!.toStringAsFixed(_result! % 1 == 0 ? 0 : 2);
           _input = resultStr;
           _preview = "";
           _result = double.tryParse(resultStr);
-          if (mounted) widget.onChanged(resultStr, "", _result);
+          _justEvaluated = true;
+          if (mounted) widget.onChanged(_input, "", _result);
         }
-      } else if (text == "%") {
-        _input += "%";
-        _justEvaluated = false;
-        _calculatePreview();
       } else if (text == "✔") {
         widget.onDone();
       } else {
-        if (_justEvaluated && RegExp(r'[0-9.]').hasMatch(text)) {
-          _input = text;
+        if (_justEvaluated) {
+          if (RegExp(r'[0-9.]').hasMatch(text)) {
+            _input = text;
+          } else if (RegExp(r'[+\-×÷*/%]').hasMatch(text)) {
+            _input += text;
+          }
           _justEvaluated = false;
         } else {
           _input += text;
@@ -119,7 +107,6 @@ class _CalculatorPanelState extends State<CalculatorPanel> {
     });
   }
 
-  // Updated: Added 'expanded' param to allow non-Expanded buttons
   Widget _buildButton(String text, {Color? color, double fontSize = 20, VoidCallback? onTap, bool expanded = true}) {
     final button = Padding(
       padding: const EdgeInsets.all(2.0),
@@ -152,6 +139,7 @@ class _CalculatorPanelState extends State<CalculatorPanel> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Removed the preview from here!
           Row(
             children: [
               _buildButton("C", color: Colors.blue[50]!),
@@ -188,7 +176,6 @@ class _CalculatorPanelState extends State<CalculatorPanel> {
             children: [
               _buildButton("0", color: Colors.grey[100]!),
               _buildButton(".", color: Colors.grey[100]!),
-              // Fixed: Use SizedBox and non-Expanded button for "="
               SizedBox(
                 width: 85,
                 child: _buildButton(

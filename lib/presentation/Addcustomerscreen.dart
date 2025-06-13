@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../LIST_LANG.dart';
 
 class AddCustomerPage extends StatefulWidget {
   final String companyId;
@@ -69,7 +70,6 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
       _staffList = [];
     });
 
-    // If companyId is null or empty, do not show any staff
     if (widget.companyId.isEmpty) {
       setState(() {
         _isStaffLoading = false;
@@ -82,13 +82,12 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
     final authKey = await _getAuthToken();
     if (authKey == null) {
       setState(() {
-        _staffError = "Authentication token missing. Please log in.";
+        _staffError = AppStrings.getString("authTokenMissing");
         _isStaffLoading = false;
       });
       return;
     }
 
-    // 1. Fetch staff list
     final staffUrl = "http://account.galaxyex.xyz/v1/user/api/user/get-staff";
     List<dynamic> staffData = [];
     try {
@@ -103,27 +102,26 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
           staffData = staffJson['data'] ?? [];
         } else {
           setState(() {
-            _staffError = staffJson['meta']?['msg'] ?? "Failed to fetch staff list";
+            _staffError = staffJson['meta']?['msg'] ?? AppStrings.getString("failedToFetchStaff");
             _isStaffLoading = false;
           });
           return;
         }
       } else {
         setState(() {
-          _staffError = "Server error: ${staffResponse.statusCode}";
+          _staffError = "${AppStrings.getString("serverError")}: ${staffResponse.statusCode}";
           _isStaffLoading = false;
         });
         return;
       }
     } catch (e) {
       setState(() {
-        _staffError = "Error: $e";
+        _staffError = "${AppStrings.getString("error")}: $e";
         _isStaffLoading = false;
       });
       return;
     }
 
-    // 2. Filter staff: only those with VIEW or EDIT (or VIEW-EDIT) access to this company
     final filteredStaff = staffData.where((staff) {
       final accessList = staff['companyAccess'] as List<dynamic>? ?? [];
       return accessList.any((access) {
@@ -133,7 +131,6 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
       });
     }).toList();
 
-    // 3. Fetch isActive for each staff (editing)
     Map<String, bool> staffActiveMap = {};
     if (widget.isEdit && widget.accountId != null && widget.accountId!.isNotEmpty) {
       final accountDetailsUrl =
@@ -180,7 +177,6 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
     final prefs = await SharedPreferences.getInstance();
     final authKey = prefs.getString("auth_token");
 
-    // Build isDisable array from staff list and visibility map
     final isDisable = _staffList.asMap().entries.map((entry) {
       final staff = entry.value;
       final index = entry.key;
@@ -223,11 +219,15 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
 
       if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(isEdit ? 'Customer updated successfully!' : 'Customer created successfully!')),
+          SnackBar(content: Text(isEdit
+              ? AppStrings.getString("customerUpdatedSuccessfully")
+              : AppStrings.getString("customerCreatedSuccessfully"))),
         );
         Navigator.pop(context, true);
       } else {
-        String msg = isEdit ? "Failed to update customer" : "Failed to create customer";
+        String msg = isEdit
+            ? AppStrings.getString("failedToUpdateCustomer")
+            : AppStrings.getString("failedToCreateCustomer");
         try {
           final respJson = json.decode(response.body);
           if (respJson['meta'] != null && respJson['meta']['msg'] != null) {
@@ -240,7 +240,7 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
+        SnackBar(content: Text('${AppStrings.getString("error")}: $e')),
       );
     } finally {
       setState(() {
@@ -263,9 +263,9 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
       );
     }
     if (_staffList.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 14),
-        child: Center(child: Text("No staff available.")),
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        child: Center(child: Text(AppStrings.getString("noStaffAvailable"))),
       );
     }
     final filteredStaff = _staffSearchQuery.isEmpty
@@ -279,11 +279,11 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.only(top: 16.0, bottom: 4, left: 2),
+        Padding(
+          padding: const EdgeInsets.only(top: 16.0, bottom: 4, left: 2),
           child: Text(
-            "Staff List",
-            style: TextStyle(
+            AppStrings.getString("staffList"),
+            style: const TextStyle(
               color: Color(0xFF23608A),
               fontWeight: FontWeight.w600,
               fontSize: 15,
@@ -296,7 +296,7 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
             controller: _staffSearchController,
             decoration: InputDecoration(
               prefixIcon: const Icon(Icons.search),
-              hintText: "Search Staff",
+              hintText: AppStrings.getString("searchStaff"),
               contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 10),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
               isDense: true,
@@ -304,9 +304,9 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
           ),
         ),
         filteredStaff.isEmpty
-            ? const Padding(
-          padding: EdgeInsets.symmetric(vertical: 8),
-          child: Center(child: Text("No staff found.")),
+            ? Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Center(child: Text(AppStrings.getString("noStaffFound"))),
         )
             : Column(
           children: List.generate(filteredStaff.length, (filteredIndex) {
@@ -338,7 +338,7 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          "UserID: $loginId",
+                          "${AppStrings.getString("userId")}: $loginId",
                           style: const TextStyle(
                             fontSize: 12,
                             color: Colors.black54,
@@ -350,7 +350,9 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
                   Row(
                     children: [
                       Text(
-                        show ? "Show" : "Hide",
+                        show
+                            ? AppStrings.getString("show")
+                            : AppStrings.getString("hide"),
                         style: TextStyle(
                           color: show ? Colors.blue[800] : Colors.red[700],
                           fontWeight: FontWeight.bold,
@@ -380,7 +382,6 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.isEdit;
@@ -388,7 +389,12 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
         leading: const BackButton(color: Colors.white),
-        title: Text(isEdit ? 'Edit Customer' : 'Add Customer', style: const TextStyle(color: Colors.white)),
+        title: Text(
+          isEdit
+              ? AppStrings.getString("editCustomer")
+              : AppStrings.getString("addCustomer"),
+          style: const TextStyle(color: Colors.white),
+        ),
         backgroundColor: const Color(0xFF23608A),
       ),
       body: SingleChildScrollView(
@@ -399,23 +405,25 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
             children: [
               TextFormField(
                 controller: _nameController,
-                decoration: const InputDecoration(
-                  hintText: 'Customer Name',
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                decoration: InputDecoration(
+                  hintText: AppStrings.getString("customerName"),
+                  border: const OutlineInputBorder(),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                 ),
                 validator: (value) =>
-                value == null || value.trim().isEmpty ? 'Enter customer name' : null,
+                value == null || value.trim().isEmpty
+                    ? AppStrings.getString("enterCustomerName")
+                    : null,
               ),
               const SizedBox(height: 10),
               Container(
                 height: 100,
                 child: TextFormField(
                   controller: _remarkController,
-                  decoration: const InputDecoration(
-                    hintText: 'Remark',
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                  decoration: InputDecoration(
+                    hintText: AppStrings.getString("remark"),
+                    border: const OutlineInputBorder(),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                   ),
                   textAlignVertical: TextAlignVertical.top,
                   maxLines: null,
@@ -442,7 +450,12 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
           child: ElevatedButton.icon(
             onPressed: _isLoading ? null : _submitCustomer,
             icon: Icon(isEdit ? Icons.save : Icons.person_add, color: Colors.white),
-            label: Text(isEdit ? 'Update Customer' : 'Create Customer', style: const TextStyle(color: Colors.white)),
+            label: Text(
+              isEdit
+                  ? AppStrings.getString("updateCustomer")
+                  : AppStrings.getString("createCustomer"),
+              style: const TextStyle(color: Colors.white),
+            ),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF23608A),
               shape: RoundedRectangleBorder(

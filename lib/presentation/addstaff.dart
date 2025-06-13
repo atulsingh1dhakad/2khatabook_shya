@@ -2,11 +2,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../LIST_LANG.dart';
 
 class AddStaffScreen extends StatefulWidget {
-  /// Call this after successful staff addition to refresh your main list.
   final VoidCallback? onStaffAdded;
-  /// If editing, pass the staff data to prefill fields.
   final Map<String, dynamic>? staffData;
 
   const AddStaffScreen({
@@ -33,7 +32,7 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
   bool loading = false;
   bool fetchingCompanies = true;
   bool isEditMode = false;
-  String? staffIdToUpdate; // For update API
+  String? staffIdToUpdate;
 
   @override
   void initState() {
@@ -61,10 +60,7 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
     nameController.text = staff['name'] ?? '';
     userIdController.text = staff['loginId'] ?? '';
     passwordController.text = staff['password'] ?? '';
-    // For update, send userId as "userIdToUpdate" and make editable fields accordingly
     staffIdToUpdate = staff['userId']?.toString() ?? staff['_id']?.toString() ?? staff['id']?.toString();
-
-    // Prefill company access
     final List accessList = staff['companyAccess'] ?? [];
     for (var company in companyList) {
       final id = company['companyId'] ?? company['_id'];
@@ -135,7 +131,6 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
     });
   }
 
-
   Future<void> addOrUpdateStaff() async {
     if (!_formKey.currentState!.validate()) return;
     List<Map<String, String>> companyAccess = [];
@@ -149,7 +144,7 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
     });
     if (companyAccess.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Select at least one company with action.")),
+        SnackBar(content: Text(AppStrings.getString("selectAtLeastOneCompany"))),
       );
       return;
     }
@@ -166,7 +161,7 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
     final authKey = await getAuthToken();
     if (authKey == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Authentication token missing.")),
+        SnackBar(content: Text(AppStrings.getString("authTokenMissing"))),
       );
       setState(() => loading = false);
       return;
@@ -192,20 +187,21 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
         if (widget.onStaffAdded != null) widget.onStaffAdded!();
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(isEditMode ? "Staff updated successfully!" : "Staff added successfully!")),
+          SnackBar(content: Text(isEditMode
+              ? AppStrings.getString("staffUpdatedSuccessfully")
+              : AppStrings.getString("staffAddedSuccessfully"))),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(jsonData['meta']?['msg'] ?? "Failed to ${isEditMode ? 'update' : 'add'} staff.")),
+          SnackBar(content: Text(jsonData['meta']?['msg'] ?? AppStrings.getString(isEditMode ? "failedToUpdateStaff" : "failedToAddStaff"))),
         );
       }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Server error: ${response.statusCode}")),
+        SnackBar(content: Text("${AppStrings.getString("serverError")}: ${response.statusCode}")),
       );
     }
   }
-
 
   Widget _companyActionDropdown(String id) {
     return SizedBox(
@@ -223,20 +219,20 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
           DropdownMenuItem(
             value: 'view',
             child: Row(
-              children: const [
-                Icon(Icons.visibility, size: 13),
-                SizedBox(width: 4),
-                Text('View', style: TextStyle(fontSize: 12)),
+              children: [
+                const Icon(Icons.visibility, size: 13),
+                const SizedBox(width: 4),
+                Text(AppStrings.getString("view"), style: const TextStyle(fontSize: 12)),
               ],
             ),
           ),
           DropdownMenuItem(
             value: 'view-edit',
             child: Row(
-              children: const [
-                Icon(Icons.edit, size: 13),
-                SizedBox(width: 4),
-                Text('Edit', style: TextStyle(fontSize: 12)),
+              children: [
+                const Icon(Icons.edit, size: 13),
+                const SizedBox(width: 4),
+                Text(AppStrings.getString("edit"), style: const TextStyle(fontSize: 12)),
               ],
             ),
           ),
@@ -254,7 +250,9 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(isEditMode ? "Edit Staff" : "Add Staff",
+        title: Text(isEditMode
+            ? AppStrings.getString("editStaff")
+            : AppStrings.getString("addStaff"),
             style: const TextStyle(color: Colors.white)),
         backgroundColor: const Color(0xFF265E85),
         iconTheme: const IconThemeData(color: Colors.white),
@@ -272,51 +270,49 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
               children: [
                 TextFormField(
                   controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: "Name",
-                    prefixIcon: Icon(Icons.person_outline),
+                  decoration: InputDecoration(
+                    labelText: AppStrings.getString("name"),
+                    prefixIcon: const Icon(Icons.person_outline),
                   ),
                   validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? "Name required" : null,
+                  (v == null || v.trim().isEmpty) ? AppStrings.getString("nameRequired") : null,
                 ),
                 TextFormField(
                   controller: userIdController,
-                  decoration: const InputDecoration(
-                    labelText: "UserID",
-                    prefixIcon: Icon(Icons.badge_outlined),
+                  decoration: InputDecoration(
+                    labelText: AppStrings.getString("userId"),
+                    prefixIcon: const Icon(Icons.badge_outlined),
                   ),
                   validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? "UserID required" : null,
-                  enabled: !isEditMode, // <--- Not editable while editing
+                  (v == null || v.trim().isEmpty) ? AppStrings.getString("userIdRequired") : null,
+                  enabled: !isEditMode,
                 ),
                 TextFormField(
                   controller: passwordController,
-                  decoration: const InputDecoration(
-                    labelText: "Password",
-                    prefixIcon: Icon(Icons.lock_outline),
+                  decoration: InputDecoration(
+                    labelText: AppStrings.getString("password"),
+                    prefixIcon: const Icon(Icons.lock_outline),
                   ),
                   validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? "Password required" : null,
+                  (v == null || v.trim().isEmpty) ? AppStrings.getString("passwordRequired") : null,
                   obscureText: true,
                 ),
                 const SizedBox(height: 8),
-                // Search Bar
                 TextField(
                   controller: searchController,
                   decoration: InputDecoration(
-                    labelText: "Search company by name",
+                    labelText: AppStrings.getString("searchCompanyByName"),
                     prefixIcon: const Icon(Icons.search),
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8)),
                   ),
                 ),
                 const SizedBox(height: 12),
-                const Text(
-                  "Select Companies & Actions",
-                  style: TextStyle(
+                Text(
+                  AppStrings.getString("selectCompaniesAndActions"),
+                  style: const TextStyle(
                       fontWeight: FontWeight.bold, fontSize: 16),
                 ),
-                // Company List
                 ...filteredCompanyList.map((company) {
                   final id = company['companyId'] ?? company['_id'];
                   final name = company['companyName'] ?? '';
@@ -360,7 +356,9 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                       child: CircularProgressIndicator(
                           strokeWidth: 2, color: Colors.white),
                     )
-                        : Text(isEditMode ? "Save Changes" : "Save",
+                        : Text(isEditMode
+                        ? AppStrings.getString("saveChanges")
+                        : AppStrings.getString("save"),
                         style: const TextStyle(color: Colors.white)),
                   ),
                 ),

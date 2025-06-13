@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../LIST_LANG.dart';
 
 // --- Color Theme Consistency --- //
 const Color kPrimaryBlue = Color(0xFF225B84);
@@ -49,7 +50,7 @@ class _CurrencySettingsState extends State<CurrencySettings> {
       if (authKey == null) {
         setState(() {
           _isLoading = false;
-          _errorMsg = "Authentication token missing. Please log in.";
+          _errorMsg = AppStrings.getString("authTokenMissing");
         });
         return;
       }
@@ -80,12 +81,12 @@ class _CurrencySettingsState extends State<CurrencySettings> {
         }
       } else {
         setState(() {
-          _errorMsg = "Server error: ${response.statusCode}";
+          _errorMsg = "${AppStrings.getString("serverError")}: ${response.statusCode}";
         });
       }
     } catch (e) {
       setState(() {
-        _errorMsg = "Could not fetch current setting";
+        _errorMsg = AppStrings.getString("couldNotFetchCurrentSetting");
       });
     }
     setState(() => _isLoading = false);
@@ -106,7 +107,7 @@ class _CurrencySettingsState extends State<CurrencySettings> {
     final parsedValue = double.tryParse(enteredValue);
     if (enteredValue.isEmpty || parsedValue == null || parsedValue <= 0) {
       setState(() {
-        _errorMsg = "Please enter a valid value greater than 0";
+        _errorMsg = AppStrings.getString("enterValidCurrencyValue");
       });
       return;
     }
@@ -117,7 +118,7 @@ class _CurrencySettingsState extends State<CurrencySettings> {
       if (authKey == null) {
         setState(() {
           _isLoading = false;
-          _errorMsg = "Authentication token missing. Please log in.";
+          _errorMsg = AppStrings.getString("authTokenMissing");
         });
         return;
       }
@@ -138,24 +139,26 @@ class _CurrencySettingsState extends State<CurrencySettings> {
         final resp = json.decode(response.body);
         if (resp["meta"]?["status"] == true) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(_currentSetting == null ? 'Currency setting saved successfully!' : 'Currency setting updated!')),
+            SnackBar(content: Text(_currentSetting == null
+                ? AppStrings.getString("currencySettingSaved")
+                : AppStrings.getString("currencySettingUpdated"))),
           );
           setState(() {
             _currentSetting = parsedValue;
           });
         } else {
           setState(() {
-            _errorMsg = resp["meta"]?["msg"] ?? "Failed to save currency setting";
+            _errorMsg = resp["meta"]?["msg"] ?? AppStrings.getString("failedToSaveCurrencySetting");
           });
         }
       } else {
         setState(() {
-          _errorMsg = 'Server error: ${response.statusCode}';
+          _errorMsg = '${AppStrings.getString("serverError")}: ${response.statusCode}';
         });
       }
     } catch (e) {
       setState(() {
-        _errorMsg = "Error: $e";
+        _errorMsg = "${AppStrings.getString("error")}: $e";
       });
     } finally {
       setState(() => _isLoading = false);
@@ -181,7 +184,7 @@ class _CurrencySettingsState extends State<CurrencySettings> {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              'Current: 1 ₹ = ${_currentSetting!.toStringAsFixed(2)}',
+              '${AppStrings.getString("current")}: 1 ₹ = ${_currentSetting!.toStringAsFixed(2)}',
               style: const TextStyle(fontSize: 16, color: Colors.black87, fontWeight: FontWeight.w600),
             ),
           ),
@@ -202,10 +205,10 @@ class _CurrencySettingsState extends State<CurrencySettings> {
           width: 100,
           child: TextField(
             controller: _currencyController,
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-              hintText: 'Value',
-              contentPadding: EdgeInsets.symmetric(horizontal: 10),
+            decoration: InputDecoration(
+              border: const OutlineInputBorder(),
+              hintText: AppStrings.getString("currencyValueHint"),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 10),
             ),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             enabled: !_isLoading,
@@ -232,7 +235,9 @@ class _CurrencySettingsState extends State<CurrencySettings> {
               ),
             )
                 : Text(
-              _currentSetting == null ? "Save" : "Edit",
+              _currentSetting == null
+                  ? AppStrings.getString("save")
+                  : AppStrings.getString("edit"),
               style: const TextStyle(color: Colors.white),
             ),
           ),
@@ -247,9 +252,9 @@ class _CurrencySettingsState extends State<CurrencySettings> {
       appBar: AppBar(
         backgroundColor: kPrimaryBlue,
         leading: const BackButton(color: Colors.white),
-        title: const Text(
-          'Currency Settings',
-          style: TextStyle(color: Colors.white),
+        title: Text(
+          AppStrings.getString("currencySettings"),
+          style: const TextStyle(color: Colors.white),
         ),
       ),
       backgroundColor: kBackground,
