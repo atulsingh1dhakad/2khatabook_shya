@@ -194,27 +194,33 @@ class _CurrencySettingsState extends State<CurrencySettings> {
   }
 
   Widget _buildCurrencyInputRow() {
-    return Row(
+    return Column(
       children: [
-        const Icon(Icons.currency_rupee),
-        const Text('1', style: TextStyle(color: Colors.black, fontSize: 25)),
-        const SizedBox(width: 20),
-        const Text('=', style: TextStyle(color: Colors.black, fontSize: 25)),
-        const SizedBox(width: 30),
-        SizedBox(
-          width: 100,
-          child: TextField(
-            controller: _currencyController,
-            decoration: InputDecoration(
-              border: const OutlineInputBorder(),
-              hintText: AppStrings.getString("currencyValueHint"),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+        Row( mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.currency_rupee),
+            const Text('1', style: TextStyle(color: Colors.black, fontSize: 25)),
+            const SizedBox(width: 20),
+            const Text('=', style: TextStyle(color: Colors.black, fontSize: 25)),
+            const SizedBox(width: 30),
+            SizedBox(
+              width: 100,
+              child: TextField(
+                controller: _currencyController,
+                decoration: InputDecoration(
+                  border: const OutlineInputBorder(),
+                  hintText: AppStrings.getString("currencyValueHint"),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+                ),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                enabled: !_isLoading,
+              ),
             ),
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            enabled: !_isLoading,
-          ),
+            const SizedBox(width: 20),
+
+          ],
         ),
-        const SizedBox(width: 20),
+        const SizedBox(height: 20),
         SizedBox(
           height: 48,
           child: ElevatedButton(
@@ -253,14 +259,14 @@ class _CurrencySettingsState extends State<CurrencySettings> {
         backgroundColor: kPrimaryBlue,
         leading: const BackButton(color: Colors.white),
         title: Text(
-          AppStrings.getString("currencySettings"),
+          AppStrings.getString("currencySetting"),
           style: const TextStyle(color: Colors.white),
         ),
       ),
       backgroundColor: kBackground,
-      body: Column(
+      body: Column( mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          _buildCurrentSettingCard(),
+
           Padding(
             padding: const EdgeInsets.all(25),
             child: Column(
