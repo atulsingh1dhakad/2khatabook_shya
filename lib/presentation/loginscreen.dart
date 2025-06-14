@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
@@ -7,7 +6,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'homescreen.dart';
 
-// You can move this to consts.dart if you wish
 const String loginAuthUrl = "http://account.galaxyex.xyz/v1/user/api//user/login";
 
 class EmailLoginScreen extends StatefulWidget {
@@ -52,8 +50,16 @@ class _EmailLoginScreenState extends State<EmailLoginScreen> {
           SharedPreferences prefs = await SharedPreferences.getInstance();
           await prefs.setString("auth_token", token);
 
-          // Optionally, print for confirmation
-          print("Token saved: $token");
+          // Save userId, userType, and userName from response
+          final user = data['data']['user'];
+          if (user != null) {
+            await prefs.setString("userId", user["userId"].toString());
+            await prefs.setString("userType", user["userType"].toString());
+            await prefs.setString("userName", user["name"].toString());
+            print("Saved userId: ${user["userId"]}, userType: ${user["userType"]}, userName: ${user["name"]}");
+          } else {
+            print("WARNING: User info not found in login response. Permission checks may fail.");
+          }
 
           if (!mounted) return;
           Navigator.pushReplacement(
@@ -192,7 +198,6 @@ class _EmailLoginScreenState extends State<EmailLoginScreen> {
                           style: TextStyle(color: Colors.white, fontSize: 14),
                         ),
                       ),
-
                     ],
                   ),
                 ),

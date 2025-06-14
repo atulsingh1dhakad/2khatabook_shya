@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../LIST_LANG.dart';
 
 // UI constants based on the image
 const double kFontSmall = 12.0;
@@ -23,10 +24,21 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
   String? error;
   bool isDeletingAll = false;
 
+  String _selectedLang = "en";
   @override
   void initState() {
     super.initState();
+    _loadSelectedLanguage();
     fetchRecycleLedger();
+  }
+
+  Future<void> _loadSelectedLanguage() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? lang = prefs.getString("app_language");
+    setState(() {
+      _selectedLang = lang ?? "en";
+      AppStrings.setLanguage(_selectedLang);
+    });
   }
 
   Future<String?> getAuthToken() async {
@@ -42,7 +54,7 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
     final authKey = await getAuthToken();
     if (authKey == null) {
       setState(() {
-        error = "Authentication token not found.";
+        error = AppStrings.getString("authErrorRelogin");
         isLoading = false;
       });
       return;
@@ -59,7 +71,6 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
         final data = json.decode(response.body);
         if (data["meta"]?["status"] == true) {
           List<dynamic> entries = data["data"] ?? [];
-          // Fetch customer names for entries that require it, in parallel for speed
           List<dynamic> enriched = await _enrichWithCustomerNames(entries, authKey);
           setState(() {
             recycleLedger = enriched;
@@ -67,26 +78,25 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
           });
         } else {
           setState(() {
-            error = data["meta"]?["msg"] ?? "Failed to load recycle ledger.";
+            error = data["meta"]?["msg"] ?? AppStrings.getString("failedToLoadRecycleBin");
             isLoading = false;
           });
         }
       } else {
         setState(() {
-          error = "Server error: ${response.statusCode}";
+          error = "${AppStrings.getString("serverError")}: ${response.statusCode}";
           isLoading = false;
         });
       }
     } catch (e) {
       setState(() {
-        error = "Error: $e";
+        error = "${AppStrings.getString("error")}: $e";
         isLoading = false;
       });
     }
   }
 
   Future<List<dynamic>> _enrichWithCustomerNames(List<dynamic> entries, String authKey) async {
-    // Parallel fetching of missing customer names for speed
     List<Future<void>> futures = [];
     for (final entry in entries) {
       if ((entry['customerName'] == null || entry['customerName'].toString().trim().isEmpty) &&
@@ -110,7 +120,7 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
       if (resp.statusCode == 200) {
         final jsonData = json.decode(resp.body);
         if (jsonData['meta'] != null && jsonData['meta']['status'] == true) {
-          entry['customerName'] = jsonData['data']?['name'] ?? "Customer";
+          entry['customerName'] = jsonData['data']?['name'] ?? AppStrings.getString("customerName");
         }
       }
     } catch (_) {
@@ -125,7 +135,7 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
     });
     final authKey = await getAuthToken();
     if (authKey == null) {
-      _showSnackBar("Authentication token not found.");
+      _showSnackBar(AppStrings.getString("authErrorRelogin"));
       setState(() {
         isRestoring = false;
         restoringLedgerId = null;
@@ -143,16 +153,16 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data["meta"]?["status"] == true) {
-          _showSnackBar("Ledger restored successfully.");
+          _showSnackBar(AppStrings.getString("undo"));
           await fetchRecycleLedger();
         } else {
-          _showSnackBar(data["meta"]?["msg"] ?? "Failed to restore ledger.");
+          _showSnackBar(data["meta"]?["msg"] ?? AppStrings.getString("failedToRestoreLedger"));
         }
       } else {
-        _showSnackBar("Server error: ${response.statusCode}");
+        _showSnackBar("${AppStrings.getString("serverError")}: ${response.statusCode}");
       }
     } catch (e) {
-      _showSnackBar("Error: $e");
+      _showSnackBar("${AppStrings.getString("error")}: $e");
     }
     setState(() {
       isRestoring = false;
@@ -161,7 +171,7 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
   }
 
   Future<void> deleteLedger(String ledgerId) async {
-    _showSnackBar("Permanent delete not implemented.");
+    _showSnackBar(AppStrings.getString("permanentDeleteNotImplemented"));
     // After deletion, refresh the bin:
     // await fetchRecycleLedger();
   }
@@ -171,16 +181,16 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("Delete All Permanently"),
-        content: const Text("Are you sure you want to permanently delete all items in the recycle bin? This action cannot be undone."),
+        title: Text(AppStrings.getString("deleteAllPermanently")),
+        content: Text(AppStrings.getString("confirmDeleteAllPermanently")),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text("Cancel"),
+            child: Text(AppStrings.getString("cancel")),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text("Delete All", style: TextStyle(color: Colors.red)),
+            child: Text(AppStrings.getString("deleteAll"), style: const TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -191,7 +201,7 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
     });
     final authKey = await getAuthToken();
     if (authKey == null) {
-      _showSnackBar("Authentication token not found.");
+      _showSnackBar(AppStrings.getString("authErrorRelogin"));
       setState(() {
         isDeletingAll = false;
       });
@@ -206,11 +216,11 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
           // Implement actual delete call here when API is available
         }
       }
-      _showSnackBar("Permanent delete of all items is not implemented (demo).");
+      _showSnackBar(AppStrings.getString("permanentDeleteNotImplemented"));
       // After deletion, refresh the bin:
       // await fetchRecycleLedger();
     } catch (e) {
-      _showSnackBar("Error: $e");
+      _showSnackBar("${AppStrings.getString("error")}: $e");
     }
     setState(() {
       isDeletingAll = false;
@@ -229,17 +239,17 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
     final diff = now.difference(deleted);
     String ago;
     if (diff.inMinutes < 1) {
-      ago = "just now";
+      ago = AppStrings.getString("justNow");
     } else if (diff.inMinutes < 60) {
-      ago = "${diff.inMinutes} minutes ago";
+      ago = AppStrings.getString("minutesAgo").replaceFirst("{n}", "${diff.inMinutes}");
     } else if (diff.inHours < 24) {
-      ago = "${diff.inHours} hours ago";
+      ago = AppStrings.getString("hoursAgo").replaceFirst("{n}", "${diff.inHours}");
     } else {
-      ago = "${diff.inDays} days ago";
+      ago = AppStrings.getString("daysAgo").replaceFirst("{n}", "${diff.inDays}");
     }
     return isEntry
-        ? "Entry deleted $ago"
-        : "Customer deleted $ago";
+        ? AppStrings.getString("entryDeleted").replaceFirst("{time}", ago)
+        : AppStrings.getString("customerDeleted").replaceFirst("{time}", ago);
   }
 
   // Returns a leading icon based on type
@@ -263,14 +273,14 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
 
   Color amountColor(num amt) => amt >= 0 ? const Color(0xFF205781) : const Color(0xFFFF0000);
 
-  String youLabel(num amt) => amt >= 0 ? "You will get" : "You will give";
+  String youLabel(num amt) => amt >= 0 ? AppStrings.getString("youWillGet") : AppStrings.getString("youWillGive");
 
   Widget buildLedgerItem(Map<String, dynamic> entry) {
     final credit = double.tryParse(entry['creditAmount']?.toString() ?? "0") ?? 0;
     final debit = double.tryParse(entry['debitAmount']?.toString() ?? "0") ?? 0;
     final amount = credit > 0 ? credit : -debit;
     final isCredit = credit > 0;
-    final name = entry['customerName'] ?? entry['name'] ?? "Customer";
+    final name = entry['customerName'] ?? entry['name'] ?? AppStrings.getString("customerName");
     final ledgerId = entry['ledgerId']?.toString() ?? entry['_id']?.toString() ?? "";
     final deletedTime = entry['deleteDate'] ?? entry['deletedAt'] ?? entry['ledgerDate'] ?? DateTime.now().millisecondsSinceEpoch;
     final isEntry = entry.containsKey('creditAmount') || entry.containsKey('debitAmount');
@@ -321,7 +331,9 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
                         Padding(
                           padding: const EdgeInsets.only(top: 4),
                           child: Text(
-                            isEntry ? "Entry from $entrySource" : "Customer from $entrySource",
+                            isEntry
+                                ? AppStrings.getString("entryFrom").replaceFirst("{source}", entrySource)
+                                : AppStrings.getString("customerFrom").replaceFirst("{source}", entrySource),
                             style: TextStyle(color: Colors.black54, fontSize: kFontSmall),
                           ),
                         ),
@@ -355,7 +367,7 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
               ],
             ),
 
-            Divider(),
+            const Divider(),
             Row(
               children: [
                 Expanded(
@@ -370,16 +382,16 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
                       final confirm = await showDialog<bool>(
                         context: context,
                         builder: (context) => AlertDialog(
-                          title: const Text("Undo Delete"),
-                          content: const Text("Are you sure you want to restore this item?"),
+                          title: Text(AppStrings.getString("undoDelete")),
+                          content: Text(AppStrings.getString("confirmUndoDelete")),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.of(context).pop(false),
-                              child: const Text("Cancel"),
+                              child: Text(AppStrings.getString("cancel")),
                             ),
                             TextButton(
                               onPressed: () => Navigator.of(context).pop(true),
-                              child: const Text("Undo", style: TextStyle(color: Color(0xFF2D486C))),
+                              child: Text(AppStrings.getString("undo"), style: const TextStyle(color: Color(0xFF2D486C))),
                             ),
                           ],
                         ),
@@ -389,7 +401,7 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
                       }
                     },
                     icon: const Icon(Icons.settings_backup_restore_rounded, size: 20),
-                    label: const Text("Undo"),
+                    label: Text(AppStrings.getString("undo")),
                   ),
                 ),
                 Expanded(
@@ -404,16 +416,16 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
                       final confirm = await showDialog<bool>(
                         context: context,
                         builder: (context) => AlertDialog(
-                          title: const Text("Delete Permanently"),
-                          content: const Text("Are you sure you want to permanently delete this item?"),
+                          title: Text(AppStrings.getString("deletePermanently")),
+                          content: Text(AppStrings.getString("confirmDeletePermanently")),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.of(context).pop(false),
-                              child: const Text("Cancel"),
+                              child: Text(AppStrings.getString("cancel")),
                             ),
                             TextButton(
                               onPressed: () => Navigator.of(context).pop(true),
-                              child: const Text("Delete", style: TextStyle(color: Colors.red)),
+                              child: Text(AppStrings.getString("delete"), style: const TextStyle(color: Colors.red)),
                             ),
                           ],
                         ),
@@ -423,7 +435,7 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
                       }
                     },
                     icon: const Icon(Icons.delete, size: 18),
-                    label: const Text("Delete"),
+                    label: Text(AppStrings.getString("delete")),
                   ),
                 ),
               ],
@@ -436,6 +448,9 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Ensure language is set for every build
+    AppStrings.setLanguage(_selectedLang);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF4F3EE),
       appBar: PreferredSize(
@@ -444,9 +459,9 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
           backgroundColor: const Color(0xFF265E85),
           leading: const BackButton(color: Colors.white),
           elevation: 0,
-          title: const Text(
-            "Recycle Bin",
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+          title: Text(
+            AppStrings.getString("recycleBin"),
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
           ),
           centerTitle: true,
           shape: const RoundedRectangleBorder(
@@ -461,15 +476,15 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
             : error != null
             ? Center(child: Text(error!, style: const TextStyle(color: Colors.red)))
             : recycleLedger.isEmpty
-            ? const Center(
+            ? Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.inbox, size: 60, color: Colors.grey),
-              SizedBox(height: 12),
+              const Icon(Icons.inbox, size: 60, color: Colors.grey),
+              const SizedBox(height: 12),
               Text(
-                "No ledgers in recycle bin.",
-                style: TextStyle(fontSize: kFontLarge, color: Colors.grey),
+                AppStrings.getString("noEntryAvailable"),
+                style: const TextStyle(fontSize: kFontLarge, color: Colors.grey),
               ),
             ],
           ),
@@ -498,9 +513,9 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
                 strokeWidth: 2,
               ),
             )
-                : const Text(
-              "Delete All Permanently",
-              style: TextStyle(
+                : Text(
+              AppStrings.getString("deleteAllPermanently"),
+              style: const TextStyle(
                 color: Colors.red,
                 fontSize: kFontLarge,
                 fontWeight: FontWeight.w600,

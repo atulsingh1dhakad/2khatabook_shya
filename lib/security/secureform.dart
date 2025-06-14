@@ -251,7 +251,7 @@ class _SecurityPinScreenState extends State<SecurityPinScreen> {
         });
         _showSnackBar(isChange
             ? AppStrings.getString("securityNumberChanged")
-            : AppStrings.getString("securityNumberSaved"));
+            : AppStrings.getString("saveSecurityNumber"));
       } else {
         String errorDetail = AppStrings.getString("failedToSaveSecurityNumber");
         if (serverMsg.isNotEmpty) errorDetail = serverMsg;
@@ -332,7 +332,7 @@ class _SecurityPinScreenState extends State<SecurityPinScreen> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Text(
-          '${AppStrings.getString("securityIs")} ',
+          '${AppStrings.getString("security")} ',
           style: const TextStyle(
             fontSize: 17,
             color: kPrimaryBlue,

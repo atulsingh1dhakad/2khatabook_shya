@@ -37,10 +37,92 @@ class _LedgerDetailsState extends State<LedgerDetails> {
   Map<String, dynamic>? ledgerEntry;
   Map<String, dynamic>? totals;
 
+  // Permission control
+  bool _accessLoaded = false;
+  bool _isViewOnly = false;
+  String _userType = '';
+  String _userId = '';
+  String _companyPermission = '';
+
   @override
   void initState() {
     super.initState();
+    _fetchUserInfoAndAccess();
     fetchLedgerEntry();
+  }
+
+  Future<void> _fetchUserInfoAndAccess() async {
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String? userId = prefs.getString("userId");
+      String? userType = prefs.getString("userType");
+      setState(() {
+        _userType = userType ?? '';
+        _userId = userId ?? '';
+      });
+      if ((_userId).isEmpty || (_userType).isEmpty) {
+        print('ERROR: userId or userType is empty! Check login logic and shared preferences.');
+      }
+      if (_userId.isNotEmpty) {
+        await _fetchUserAccess(_userId, widget.companyId);
+      } else {
+        setState(() {
+          _accessLoaded = true;
+          _isViewOnly = false;
+          _companyPermission = '';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _userType = '';
+        _userId = '';
+        _accessLoaded = true;
+        _isViewOnly = false;
+        _companyPermission = '';
+      });
+    }
+  }
+
+  Future<void> _fetchUserAccess(String userId, String companyId) async {
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      final authKey = prefs.getString("auth_token");
+      final url = "http://account.galaxyex.xyz/v1/user/api//account/get-access/$userId";
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          "Authkey": authKey ?? "",
+          "Content-Type": "application/json",
+        },
+      );
+      bool viewOnly = false;
+      String permission = '';
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> jsonData = json.decode(response.body);
+        final List compDetails = (jsonData['data']['compnayDetails'] ?? []);
+        final access = compDetails.firstWhere(
+              (c) => c['companyId'].toString() == companyId,
+          orElse: () => null,
+        );
+        if (access != null) {
+          permission = access['action']?.toString() ?? '';
+          if (permission.toUpperCase() == 'VIEW') {
+            viewOnly = true;
+          }
+        }
+      }
+      setState(() {
+        _accessLoaded = true;
+        _isViewOnly = viewOnly;
+        _companyPermission = permission;
+      });
+    } catch (e) {
+      setState(() {
+        _accessLoaded = true;
+        _isViewOnly = false;
+        _companyPermission = '';
+      });
+    }
   }
 
   Future<String?> getAuthToken() async {
@@ -121,6 +203,10 @@ class _LedgerDetailsState extends State<LedgerDetails> {
   }
 
   Future<void> _confirmAndDelete() async {
+    if (_isViewOnly) {
+      _showNoPermissionDialog();
+      return;
+    }
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -184,6 +270,22 @@ class _LedgerDetailsState extends State<LedgerDetails> {
     );
   }
 
+  void _showNoPermissionDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(AppStrings.getString("permissionDenied")),
+        content: Text(AppStrings.getString("noPermissionForThisAction")),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text("OK"),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(
@@ -215,12 +317,12 @@ class _LedgerDetailsState extends State<LedgerDetails> {
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: _confirmAndDelete,
-                    icon: const Icon(Icons.delete, color: Colors.red, size: 18),
+                    onPressed: _isViewOnly ? _showNoPermissionDialog : _confirmAndDelete,
+                    icon: Icon(Icons.delete, color: _isViewOnly ? Colors.grey : Colors.red, size: 18),
                     label: Text(
                       AppStrings.getString("delete").toUpperCase(),
-                      style: const TextStyle(
-                        color: Colors.red,
+                      style: TextStyle(
+                        color: _isViewOnly ? Colors.grey : Colors.red,
                         fontWeight: FontWeight.w600,
                         fontSize: kFontMedium,
                       ),
@@ -229,7 +331,7 @@ class _LedgerDetailsState extends State<LedgerDetails> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      side: const BorderSide(color: Colors.red),
+                      side: BorderSide(color: _isViewOnly ? Colors.grey : Colors.red),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                   ),
@@ -237,20 +339,22 @@ class _LedgerDetailsState extends State<LedgerDetails> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: () {
+                    onPressed: _isViewOnly
+                        ? _showNoPermissionDialog
+                        : () {
                       // Implement share functionality
                     },
-                    icon: const Icon(Icons.share, color: Colors.white, size: 18),
+                    icon: Icon(Icons.share, color: _isViewOnly ? Colors.grey[200] : Colors.white, size: 18),
                     label: Text(
                       AppStrings.getString("share").toUpperCase(),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: kFontMedium,
-                        color: Colors.white,
+                        color: _isViewOnly ? Colors.grey : Colors.white,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF265E85),
+                      backgroundColor: _isViewOnly ? Colors.grey : const Color(0xFF265E85),
                       padding: const EdgeInsets.symmetric(vertical: 12,),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -451,7 +555,9 @@ class _LedgerDetailsState extends State<LedgerDetails> {
                             const SizedBox(height: 8),
                           Center(
                             child: TextButton.icon(
-                              onPressed: () async {
+                              onPressed: _isViewOnly
+                                  ? _showNoPermissionDialog
+                                  : () async {
                                 if (youGot) {
                                   final result = await Navigator.push(
                                     context,
@@ -490,11 +596,11 @@ class _LedgerDetailsState extends State<LedgerDetails> {
                                   }
                                 }
                               },
-                              icon: const Icon(Icons.edit, color: Color(0xFF265E85), size: 18),
+                              icon: Icon(Icons.edit, color: _isViewOnly ? Colors.grey : const Color(0xFF265E85), size: 18),
                               label: Text(
                                 AppStrings.getString("editEntry").toUpperCase(),
-                                style: const TextStyle(
-                                  color: Color(0xFF265E85),
+                                style: TextStyle(
+                                  color: _isViewOnly ? Colors.grey : const Color(0xFF265E85),
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),

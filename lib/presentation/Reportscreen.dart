@@ -2,6 +2,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'dart:io';
 import '../LIST_LANG.dart';
 
 class ReportScreen extends StatefulWidget {
@@ -14,9 +17,13 @@ class ReportScreen extends StatefulWidget {
 
 class _ReportScreenState extends State<ReportScreen> {
   bool isLoading = true;
+  bool isDownloading = false;
   String? errorMessage;
   List<Map<String, dynamic>> ledgerList = [];
   Map<String, dynamic> totals = {};
+  // Date filter
+  DateTime? startDate;
+  DateTime? endDate;
 
   @override
   void initState() {
@@ -55,8 +62,14 @@ class _ReportScreenState extends State<ReportScreen> {
         final Map<String, dynamic> jsonData = json.decode(response.body);
         if (jsonData['meta'] != null && jsonData['meta']['status'] == true) {
           final List<dynamic> data = jsonData['data'] ?? [];
+          final List<Map<String, dynamic>> sortedData = data.cast<Map<String, dynamic>>();
+          sortedData.sort((a, b) {
+            int aDate = int.tryParse(a['ledgerDate']?.toString() ?? "0") ?? 0;
+            int bDate = int.tryParse(b['ledgerDate']?.toString() ?? "0") ?? 0;
+            return bDate.compareTo(aDate); // Descending
+          });
           setState(() {
-            ledgerList = data.cast<Map<String, dynamic>>();
+            ledgerList = sortedData;
             totals = jsonData['totals'] ?? {};
             isLoading = false;
           });
@@ -121,17 +134,198 @@ class _ReportScreenState extends State<ReportScreen> {
     }
   }
 
-  /// Compute running balance as per CustomerDetails logic, for the report.
-  List<double?> runningBalances() {
+  // Compute running balance for a provided list (filtered)
+  List<double?> runningBalancesForList(List<Map<String, dynamic>> list) {
     double sum = 0;
-    List<double?> balances = List.filled(ledgerList.length, null);
-    for (int i = ledgerList.length - 1; i >= 0; i--) {
-      final credit = double.tryParse(ledgerList[i]['creditAmount']?.toString() ?? "0") ?? 0;
-      final debit = double.tryParse(ledgerList[i]['debitAmount']?.toString() ?? "0") ?? 0;
+    List<double?> balances = List.filled(list.length, null);
+    for (int i = list.length - 1; i >= 0; i--) {
+      final credit = double.tryParse(list[i]['creditAmount']?.toString() ?? "0") ?? 0;
+      final debit = double.tryParse(list[i]['debitAmount']?.toString() ?? "0") ?? 0;
       sum += credit - debit;
       balances[i] = sum;
     }
     return balances;
+  }
+
+  // Date selection helpers
+  Future<void> _pickDate({required bool isStart}) async {
+    DateTime initialDate = isStart ? (startDate ?? DateTime.now()) : (endDate ?? DateTime.now());
+    DateTime firstDate = DateTime(2000);
+    DateTime lastDate = DateTime(2100);
+
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: firstDate,
+      lastDate: lastDate,
+    );
+
+    if (picked != null) {
+      setState(() {
+        if (isStart) {
+          startDate = picked;
+          if (endDate != null && endDate!.isBefore(startDate!)) {
+            endDate = startDate;
+          }
+        } else {
+          endDate = picked;
+          if (startDate != null && startDate!.isAfter(endDate!)) {
+            startDate = endDate;
+          }
+        }
+      });
+    }
+  }
+
+  String getDateText(DateTime? date, String defaultText) {
+    if (date == null) return defaultText;
+    return "${date.day.toString().padLeft(2, '0')} ${_monthName(date.month)} ${date.year}";
+  }
+
+  // ----------- PDF DOWNLOAD LOGIC ----------------
+  Future<void> downloadPdf() async {
+    setState(() {
+      isDownloading = true;
+    });
+    try {
+      // Ask for storage permission if android
+      if (await Permission.storage.request().isDenied) {
+        setState(() {
+          isDownloading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Storage permission denied.")),
+        );
+        return;
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      final authKey = prefs.getString("auth_token");
+      if (authKey == null) {
+        setState(() {
+          isDownloading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(AppStrings.getString("authTokenMissing"))),
+        );
+        return;
+      }
+
+      // Prepare request body
+      String getFormattedDate(DateTime date) {
+        // Format: dd-MM-yyyy hh:mm a
+        final h = date.hour % 12 == 0 ? 12 : date.hour % 12;
+        final ampm = date.hour < 12 ? "AM" : "PM";
+        final min = date.minute.toString().padLeft(2, '0');
+        return "${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year} ${h.toString().padLeft(2, '0')}:$min $ampm";
+      }
+
+      String nowString = getFormattedDate(DateTime.now());
+
+      String companyName = "Company Name";
+      if (ledgerList.isNotEmpty && ledgerList[0]['companyName'] != null) {
+        companyName = ledgerList[0]['companyName'];
+      }
+
+      // Use filtered list according to selected dates for rows
+      List<Map<String, dynamic>> displayedLedgerList = ledgerList.where((entry) {
+        int millis = int.tryParse(entry['ledgerDate']?.toString() ?? "0") ?? 0;
+        if (millis == 0) return false;
+        DateTime entryDate = DateTime.fromMillisecondsSinceEpoch(millis);
+        if (startDate != null && entryDate.isBefore(DateTime(startDate!.year, startDate!.month, startDate!.day))) {
+          return false;
+        }
+        if (endDate != null && entryDate.isAfter(DateTime(endDate!.year, endDate!.month, endDate!.day, 23, 59, 59, 999))) {
+          return false;
+        }
+        return true;
+      }).toList();
+
+      // Prepare rows
+      List<Map<String, dynamic>> rows = displayedLedgerList.map((entry) {
+        int millis = int.tryParse(entry['ledgerDate']?.toString() ?? "0") ?? 0;
+        String ledgerDate;
+        if (millis != 0) {
+          final d = DateTime.fromMillisecondsSinceEpoch(millis);
+          final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
+          final ampm = d.hour < 12 ? "AM" : "PM";
+          final min = d.minute.toString().padLeft(2, '0');
+          ledgerDate = "${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year} ${h.toString().padLeft(2, '0')}:$min $ampm";
+        } else {
+          ledgerDate = "-";
+        }
+        return {
+          "username": entry['username'] ?? "",
+          "debitAmount": entry['debitAmount']?.toString() ?? "0.00",
+          "creditAmount": entry['creditAmount']?.toString() ?? "0.00",
+          "balance": entry['balance']?.toString() ?? "",
+          "ledgerDate": ledgerDate
+        };
+      }).toList();
+
+      final Map<String, dynamic> requestBody = {
+        "companyName": companyName,
+        "updateAt": nowString,
+        "totelCredit": totals['totalCreditAmount']?.toString() ?? "0.00",
+        "totelDebit": totals['totalDebitAmount']?.toString() ?? "0.00",
+        "totelBalance": totals['totalBalance']?.toString() ?? "0.00",
+        "row": rows,
+      };
+
+      final url = "http://account.galaxyex.xyz/v1/user/api//account/generate-pdf";
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {
+          "Authkey": authKey,
+          "Content-Type": "application/json",
+        },
+        body: jsonEncode(requestBody),
+      );
+
+      if (response.statusCode == 200) {
+        // Save the PDF to disk
+        final bytes = response.bodyBytes;
+        final dir = await getDownloadDirectory();
+        final fileName = "report_${DateTime.now().millisecondsSinceEpoch}.pdf";
+        final file = File('${dir.path}/$fileName');
+        await file.writeAsBytes(bytes);
+
+        setState(() {
+          isDownloading = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("PDF downloaded: ${file.path}")),
+        );
+      } else {
+        setState(() {
+          isDownloading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Failed to download PDF: ${response.statusCode}")),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        isDownloading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e")),
+      );
+    }
+  }
+
+  Future<Directory> getDownloadDirectory() async {
+    if (Platform.isAndroid) {
+      // For Android, use Download directory
+      final dir = Directory('/storage/emulated/0/Download');
+      if (await dir.exists()) return dir;
+      return await getExternalStorageDirectory() ?? await getApplicationDocumentsDirectory();
+    } else if (Platform.isIOS) {
+      return await getApplicationDocumentsDirectory();
+    } else {
+      return await getTemporaryDirectory();
+    }
   }
 
   @override
@@ -144,7 +338,28 @@ class _ReportScreenState extends State<ReportScreen> {
     double balance = double.tryParse(totals['totalBalance']?.toString() ?? "0") ?? 0;
     final balanceColor = balance < 0 ? giveColor : getColor;
 
-    final runningBalancesList = runningBalances();
+    // FILTERING LIST BY DATE
+    List<Map<String, dynamic>> displayedLedgerList = ledgerList.where((entry) {
+      int millis = int.tryParse(entry['ledgerDate']?.toString() ?? "0") ?? 0;
+      if (millis == 0) return false;
+      DateTime entryDate = DateTime.fromMillisecondsSinceEpoch(millis);
+      if (startDate != null && entryDate.isBefore(DateTime(startDate!.year, startDate!.month, startDate!.day))) {
+        return false;
+      }
+      if (endDate != null && entryDate.isAfter(DateTime(endDate!.year, endDate!.month, endDate!.day, 23, 59, 59, 999))) {
+        return false;
+      }
+      return true;
+    }).toList();
+
+    // Sort again just in case (descending)
+    displayedLedgerList.sort((a, b) {
+      int aDate = int.tryParse(a['ledgerDate']?.toString() ?? "0") ?? 0;
+      int bDate = int.tryParse(b['ledgerDate']?.toString() ?? "0") ?? 0;
+      return bDate.compareTo(aDate);
+    });
+
+    final runningBalancesList = runningBalancesForList(displayedLedgerList);
 
     return Scaffold(
       appBar: AppBar(
@@ -163,8 +378,9 @@ class _ReportScreenState extends State<ReportScreen> {
           ? Center(child: Text(errorMessage!))
           : Column(
         children: [
+          // Top Card
           Padding(
-            padding: const EdgeInsets.fromLTRB(10, 12, 10, 6),
+            padding: const EdgeInsets.fromLTRB(10, 14, 10, 6),
             child: _singleTopCard(
               debit: totals['totalDebitAmount'],
               credit: totals['totalCreditAmount'],
@@ -174,30 +390,114 @@ class _ReportScreenState extends State<ReportScreen> {
               balanceColor: balanceColor,
             ),
           ),
+          // Date Range Row (below card)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => _pickDate(isStart: true),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 11, horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(7),
+                          bottomLeft: Radius.circular(7),
+                        ),
+                        border: Border.all(
+                            color: Color(0xFFE1E1E1)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.calendar_today_outlined,
+                              size: 18, color: Color(0xFF205781)),
+                          const SizedBox(width: 7),
+                          Text(
+                            getDateText(
+                                startDate, "START DATE"),
+                            style: TextStyle(
+                              color: Color(0xFF205781),
+                              fontWeight: FontWeight.w500,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => _pickDate(isStart: false),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 11, horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: const BorderRadius.only(
+                          topRight: Radius.circular(7),
+                          bottomRight: Radius.circular(7),
+                        ),
+                        border: Border.all(
+                            color: Color(0xFFE1E1E1)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.calendar_today_outlined,
+                              size: 18, color: Color(0xFF205781)),
+                          const SizedBox(width: 7),
+                          Text(
+                            getDateText(
+                                endDate, "END DATE"),
+                            style: TextStyle(
+                              color: Color(0xFF205781),
+                              fontWeight: FontWeight.w500,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
           Expanded(
-            child: ledgerList.isEmpty
-                ? Center(child: Text(AppStrings.getString("noRecords")))
+            child: displayedLedgerList.isEmpty
+                ? Center(
+                child:
+                Text(AppStrings.getString("noRecords")))
                 : ListView.separated(
               separatorBuilder: (_, __) =>
               const Divider(height: 0),
-              itemCount: ledgerList.length,
+              itemCount: displayedLedgerList.length,
               itemBuilder: (context, index) {
-                final entry = ledgerList[index];
-                final username = toTitleCase(entry['username'] ?? '');
-                final isCredit =
-                    double.tryParse(entry['creditAmount'] ?? "0.00")! > 0;
-                final isDebit =
-                    double.tryParse(entry['debitAmount'] ?? "0.00")! > 0;
+                final entry = displayedLedgerList[index];
+                final username =
+                toTitleCase(entry['username'] ?? '');
+                final isCredit = double.tryParse(
+                    entry['creditAmount'] ?? "0.00")! >
+                    0;
+                final isDebit = double.tryParse(
+                    entry['debitAmount'] ?? "0.00")! >
+                    0;
                 final amount = isCredit
                     ? entry['creditAmount']
                     : entry['debitAmount'];
                 final amountNum =
-                    double.tryParse(amount?.toString() ?? "0") ?? 0;
+                    double.tryParse(amount?.toString() ?? "0") ??
+                        0;
 
-                final amountColor = isCredit ? getColor : giveColor;
+                final amountColor =
+                isCredit ? getColor : giveColor;
 
                 final balNum = runningBalancesList[index];
-                final runningBalanceProper = balNum != null && balNum.isFinite;
+                final runningBalanceProper =
+                    balNum != null && balNum.isFinite;
 
                 final balText = runningBalanceProper
                     ? "₹${formatCompactAmount(balNum!)}"
@@ -212,7 +512,8 @@ class _ReportScreenState extends State<ReportScreen> {
                       : Colors.white,
                   child: ListTile(
                     dense: true,
-                    contentPadding: const EdgeInsets.symmetric(
+                    contentPadding:
+                    const EdgeInsets.symmetric(
                         horizontal: 14, vertical: 2),
                     title: Text(
                       username,
@@ -252,7 +553,8 @@ class _ReportScreenState extends State<ReportScreen> {
                         ),
                         if (!runningBalanceProper)
                           Text(
-                            AppStrings.getString("runningBalanceNotProper"),
+                            AppStrings.getString(
+                                "runningBalanceNotProper"),
                             style: const TextStyle(
                                 fontSize: 12,
                                 color: Colors.orange,
@@ -273,6 +575,68 @@ class _ReportScreenState extends State<ReportScreen> {
             ),
           ),
         ],
+      ),
+      bottomNavigationBar: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+        color: Colors.white,
+        child: Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                icon: isDownloading
+                    ? const SizedBox(
+                    height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFD32F2F)))
+                    : const Icon(
+                  Icons.picture_as_pdf,
+                  color: Color(0xFFD32F2F), // Red shade
+                  size: 20,
+                ),
+                label: Text(
+                  "Download PDF",
+                  style: const TextStyle(
+                      color: Color(0xFFD32F2F), // Red shade
+                      fontWeight: FontWeight.w600,
+                      fontSize: 16,
+                      letterSpacing: 0.3),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFFD32F2F)), // Red shade
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(7)),
+                ),
+                onPressed: isDownloading ? null : downloadPdf,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: OutlinedButton.icon(
+                icon: const Icon(
+                  Icons.grid_on_rounded,
+                  color: Color(0xFF388E3C), // Green shade
+                  size: 20,
+                ),
+                label: const Text(
+                  "Download Excel",
+                  style: TextStyle(
+                      color: Color(0xFF388E3C), // Green shade
+                      fontWeight: FontWeight.w600,
+                      fontSize: 16,
+                      letterSpacing: 0.3),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFF388E3C)), // Green shade
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(7)),
+                ),
+                onPressed: () {
+                  // TODO: Implement Excel download
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

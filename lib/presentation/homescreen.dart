@@ -49,10 +49,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
   AppLifecycleState? _lastLifecycleState;
   bool _didSetInitialCompany = false;
 
+  String _userType = '';
+  String _userId = '';
+  bool _accessLoaded = false;
+  bool _isViewOnly = false;
+  String _companyPermission = '';
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _fetchUserInfoAndAccess();
   }
 
   @override
@@ -71,6 +78,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
         });
         if (selectedCompanyId != null) {
           fetchAccounts(selectedCompanyId!);
+          _fetchUserAccess(_userId, selectedCompanyId!);
         }
       } else {
         fetchCompanies();
@@ -91,6 +99,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
     fetchCompanies();
     if (selectedCompanyId != null) {
       fetchAccounts(selectedCompanyId!);
+      _fetchUserAccess(_userId, selectedCompanyId!);
     }
   }
 
@@ -100,9 +109,84 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
       fetchCompanies();
       if (selectedCompanyId != null) {
         fetchAccounts(selectedCompanyId!);
+        _fetchUserAccess(_userId, selectedCompanyId!);
       }
     }
     _lastLifecycleState = state;
+  }
+
+  Future<void> _fetchUserInfoAndAccess() async {
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String? userId = prefs.getString("userId");
+      String? userType = prefs.getString("userType");
+      setState(() {
+        _userType = userType ?? '';
+        _userId = userId ?? '';
+      });
+      // Don't call access here, call only once we have selectedCompanyId
+    } catch (e) {
+      setState(() {
+        _userType = '';
+        _userId = '';
+        _accessLoaded = true;
+        _isViewOnly = false;
+        _companyPermission = '';
+      });
+    }
+  }
+
+  /// Fetches permission for the current company from backend.
+  Future<void> _fetchUserAccess(String userId, String companyId) async {
+    if (userId.isEmpty || companyId.isEmpty) {
+      setState(() {
+        _accessLoaded = true;
+        _isViewOnly = false;
+        _companyPermission = '';
+      });
+      return;
+    }
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      final authKey = prefs.getString("auth_token");
+      final url = "http://account.galaxyex.xyz/v1/user/api//account/get-access/$userId";
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          "Authkey": authKey ?? "",
+          "Content-Type": "application/json",
+        },
+      );
+      bool viewOnly = false;
+      String permission = '';
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> jsonData = json.decode(response.body);
+        // FIX: Use jsonData['data']['compnayDetails'] because it's nested!
+        final List compDetails = (jsonData['data']['compnayDetails'] ?? []);
+        // Check access for the selected company
+        final access = compDetails.firstWhere(
+              (c) => c['companyId'].toString() == companyId,
+          orElse: () => null,
+        );
+        if (access != null) {
+          permission = access['action']?.toString() ?? '';
+          if (permission.toUpperCase() == "VIEW") {
+            viewOnly = true;
+          }
+        }
+      }
+      setState(() {
+        _accessLoaded = true;
+        _isViewOnly = viewOnly;
+        _companyPermission = permission;
+      });
+    } catch (e) {
+      setState(() {
+        _accessLoaded = true;
+        _isViewOnly = false;
+        _companyPermission = '';
+      });
+    }
   }
 
   String getFormattedLastUpdate(Map<String, dynamic> acc) {
@@ -187,6 +271,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
 
           if (defaultCompanyId != null) {
             fetchAccounts(defaultCompanyId);
+            _fetchUserAccess(_userId, defaultCompanyId);
           }
         } else {
           setState(() {
@@ -295,9 +380,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
     setState(() {
       selectedCompanyId = newCompanyId;
       selectedCompanyName = newCompanyName;
+      _accessLoaded = false;
+      _isViewOnly = false;
+      _companyPermission = '';
     });
     if (newCompanyId != null) {
       fetchAccounts(newCompanyId);
+      _fetchUserAccess(_userId, newCompanyId);
     }
     Navigator.of(context).pop();
   }
@@ -310,6 +399,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
     }
     return (parts[0].isNotEmpty ? parts[0][0] : '') +
         (parts[1].isNotEmpty ? parts[1][0] : '');
+  }
+
+  void _showNoPermissionDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Permission Denied"),
+        content: const Text("You don't have permission for this action."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text("OK"),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showCompanySelectorBottomSheet(BuildContext context) {
@@ -412,6 +517,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
                                       ),
                                       child: GestureDetector(
                                         onTap: () async {
+                                          if (!_accessLoaded) return;
+                                          if (_isViewOnly) {
+                                            _showNoPermissionDialog();
+                                            return;
+                                          }
                                           Navigator.pop(context);
                                           await Navigator.push(
                                             context,
@@ -443,6 +553,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
                   const SizedBox(height: 8),
                   ElevatedButton.icon(
                     onPressed: () {
+                      if (!_accessLoaded) return;
+                      if (_isViewOnly) {
+                        Navigator.pop(context);
+                        _showNoPermissionDialog();
+                        return;
+                      }
                       Navigator.pop(context);
                       Navigator.push(
                         context,
@@ -727,6 +843,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
                       ),
                       const Icon(Icons.arrow_downward,
                           color: Colors.white, size: 20),
+                      if (_companyPermission.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          '(${_companyPermission.toUpperCase()})',
+                          style: const TextStyle(
+                            color: Colors.amber,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -978,6 +1106,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
         top: false,
         child: GestureDetector(
           onTap: () {
+            if (!_accessLoaded) return;
+            if (_isViewOnly) {
+              _showNoPermissionDialog();
+              return;
+            }
             if (selectedCompanyId == null) {
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                   content: Text(AppStrings.getString("pleaseSelectCompanyFirst"))));
@@ -993,30 +1126,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
               if (value == true) fetchAccounts(selectedCompanyId!);
             });
           },
-          child: Container(
-            height: 50,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: const Color(0xFF205781),
-              borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(15), topRight: Radius.circular(15)),
-            ),
-            alignment: Alignment.center,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.person, color: Colors.white, size: 28),
-                const SizedBox(width: 12),
-                Text(
-                  AppStrings.getString("addCustomer"),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: kFontLarge,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.5,
+          child: Opacity(
+            opacity: (!_accessLoaded || _isViewOnly) ? 0.5 : 1.0,
+            child: Container(
+              height: 50,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: const Color(0xFF205781),
+                borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(15), topRight: Radius.circular(15)),
+              ),
+              alignment: Alignment.center,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.person, color: Colors.white, size: 28),
+                  const SizedBox(width: 12),
+                  Text(
+                    AppStrings.getString("addCustomer"),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: kFontLarge,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

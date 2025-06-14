@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:Calculator/Backup/backupscreen.dart';
 import 'package:Calculator/presentation/currency.dart';
 import 'package:flutter/material.dart';
@@ -10,6 +11,8 @@ import 'changepass.dart';
 import 'languagescreen.dart';
 import 'recyclebinscreen.dart';
 import 'loginscreen.dart';
+import 'package:http/http.dart' as http;
+import '../LIST_LANG.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -21,11 +24,37 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   String _version = '';
   String _buildNumber = '';
+  String _userName = '';
+  String _userType = '';
+  String _userId = '';
+  bool _accessLoaded = false;
+  bool _isViewOnly = false;
+  String _selectedLang = "en";
 
   @override
   void initState() {
     super.initState();
+    _loadSelectedLanguage();
     _fetchVersion();
+    _fetchUserInfoAndAccess();
+  }
+
+  Future<void> _loadSelectedLanguage() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? lang = prefs.getString("app_language");
+    setState(() {
+      _selectedLang = lang ?? "en";
+      AppStrings.setLanguage(_selectedLang);
+    });
+  }
+
+  Future<void> _changeLanguage(String lang) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString("app_language", lang);
+    setState(() {
+      _selectedLang = lang;
+      AppStrings.setLanguage(lang);
+    });
   }
 
   Future<void> _fetchVersion() async {
@@ -43,9 +72,75 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  /// Loads userId/userType from shared_preferences and loads access.
+  Future<void> _fetchUserInfoAndAccess() async {
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String? userId = prefs.getString("userId");
+      String? userType = prefs.getString("userType");
+      String? userName = prefs.getString("userName");
+      setState(() {
+        _userName = userName ?? '';
+        _userType = userType ?? '';
+        _userId = userId ?? '';
+      });
+      if (_userId.isNotEmpty) {
+        await _fetchUserAccess(_userId);
+      } else {
+        setState(() {
+          _accessLoaded = true;
+          _isViewOnly = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _userName = "";
+        _userType = "";
+        _userId = "";
+        _accessLoaded = true;
+        _isViewOnly = false;
+      });
+    }
+  }
+
+  Future<void> _fetchUserAccess(String userId) async {
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      final authKey = prefs.getString("auth_token");
+      final url = "http://account.galaxyex.xyz/v1/user/api//account/get-access/$userId";
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          "Authkey": authKey ?? "",
+          "Content-Type": "application/json",
+        },
+      );
+      bool viewOnly = false;
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> jsonData = json.decode(response.body);
+        final List compDetails = (jsonData['compnayDetails'] ?? []);
+        if (compDetails.any((c) => (c['action'] ?? '').toString().toUpperCase() == 'VIEW')) {
+          viewOnly = true;
+        }
+      }
+      setState(() {
+        _accessLoaded = true;
+        _isViewOnly = viewOnly;
+      });
+    } catch (e) {
+      setState(() {
+        _accessLoaded = true;
+        _isViewOnly = false;
+      });
+    }
+  }
+
   Future<void> _logout(BuildContext context) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.remove("auth_token");
+    await prefs.remove("userId");
+    await prefs.remove("userType");
+    await prefs.remove("userName");
     if (mounted) {
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (context) => const EmailLoginScreen()),
@@ -54,8 +149,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  void _showNoPermissionDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(AppStrings.getString("permissionDenied")),
+        content: Text(AppStrings.getString("noPermissionForThisAction")),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(AppStrings.getString("close")),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Always use the latest language
+    AppStrings.setLanguage(_selectedLang);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF6F8FA),
       body: Column(
@@ -70,16 +184,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
             width: double.infinity,
             padding: const EdgeInsets.only(top: 36, bottom: 16),
             child: Column(
-              children: const [
-                CircleAvatar(
+              children: [
+                const CircleAvatar(
                   radius: 34,
                   backgroundColor: Colors.white,
                   child: Icon(Icons.person, color: Color(0xFF205781), size: 38),
                 ),
-                SizedBox(height: 10),
+                const SizedBox(height: 10),
                 Text(
-                  "GGM 1",
-                  style: TextStyle(
+                  _userName.isNotEmpty ? _userName : "",
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
@@ -95,13 +209,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   SidebarButton(
                     icon: Icons.arrow_back,
-                    label: "Back",
+                    label: AppStrings.getString("back"),
                     onTap: null, // default pop by InkWell
                     isBack: true,
                   ),
                   SidebarButton(
                     icon: Icons.all_inbox,
-                    label: "All Company Trial",
+                    label: AppStrings.getString("allCompanyTrial"),
                     onTap: () {
                       Navigator.push(
                         context,
@@ -109,19 +223,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       );
                     },
                   ),
-                  SidebarButton(
-                    icon: Icons.group,
-                    label: "Staff List",
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const StaffListPage()),
-                      );
-                    },
-                  ),
+                  if (_userType.trim().toUpperCase() != "STAFF")
+                    SidebarButton(
+                      icon: Icons.group,
+                      label: AppStrings.getString("staffList"),
+                      onTap: () {
+                        if ((_userType.trim().toUpperCase() == "STAFF") && (_isViewOnly || !_accessLoaded)) {
+                          _showNoPermissionDialog();
+                          return;
+                        }
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const StaffListPage()),
+                        );
+                      },
+                    ),
                   SidebarButton(
                     icon: Icons.delete_outline,
-                    label: "Recycle Bin",
+                    label: AppStrings.getString("recycleBin"),
                     onTap: () {
                       Navigator.push(
                         context,
@@ -131,27 +250,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   SidebarButton(
                     icon: Icons.language,
-                    label: "Change Language",
-                    onTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => LanguagesScreen(onLanguageChanged: (String ) {  },),))          ;          },
+                    label: AppStrings.getString("changeLanguage"),
+                    onTap: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => LanguagesScreen(
+                            onLanguageChanged: (lang) async {
+                              await _changeLanguage(lang);
+                            },
+                          ),
+                        ),
+                      );
+                      await _loadSelectedLanguage();
+                      setState(() {}); // to force rebuild with new language
+                    },
                   ),
                   SidebarButton(
                     icon: Icons.attach_money,
-                    label: "Currency Settings",
+                    label: AppStrings.getString("currencySetting"),
                     onTap: () {
                       Navigator.push(context, MaterialPageRoute(builder: (context) => CurrencySettings(),));
                     },
                   ),
                   SidebarButton(
                     icon: Icons.backup_outlined,
-                    label: "Backup & Delete",
+                    label: AppStrings.getString("backupAndDelete"),
                     onTap: () {
                       Navigator.push(context, MaterialPageRoute(builder: (context) => BackupScreen(),));
                     },
                   ),
                   SidebarButton(
                     icon: Icons.security,
-                    label: "Security",
+                    label: AppStrings.getString("security"),
                     onTap: () {
                       Navigator.push(
                         context,
@@ -161,7 +292,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   SidebarButton(
                     icon: Icons.password,
-                    label: "Change Password",
+                    label: AppStrings.getString("changePassword"),
                     onTap: () {
                       Navigator.push(
                         context,
@@ -176,8 +307,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       alignment: Alignment.center,
                       child: Text(
                         (_version.isNotEmpty)
-                            ? 'App Version: $_version ($_buildNumber)'
-                            : 'App Version: ...',
+                            ? '${AppStrings.getString("appVersion")}: $_version ($_buildNumber)'
+                            : '${AppStrings.getString("appVersion")}: ...',
                         style: TextStyle(
                           color: Colors.grey[600],
                           fontSize: 14,
@@ -203,12 +334,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
-                    Icon(Icons.logout, color: Colors.red, size: 24),
-                    SizedBox(width: 14),
+                  children: [
+                    const Icon(Icons.logout, color: Colors.red, size: 24),
+                    const SizedBox(width: 14),
                     Text(
-                      "Logout",
-                      style: TextStyle(
+                      AppStrings.getString("logout"),
+                      style: const TextStyle(
                         color: Colors.red,
                         fontWeight: FontWeight.w600,
                         fontSize: 18,

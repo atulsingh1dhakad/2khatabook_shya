@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:restart_app/restart_app.dart';
+import '../LIST_LANG.dart';
 
 class LanguagesScreen extends StatefulWidget {
   final Function(String) onLanguageChanged;
@@ -12,11 +12,7 @@ class LanguagesScreen extends StatefulWidget {
 }
 
 class _LanguagesScreenState extends State<LanguagesScreen> {
-  final List<String> languages = [
-    'English',
-    'Hindi',
-  ];
-
+  final List<String> languageCodes = ['en', 'hi'];
   int selectedIndex = 0;
   bool isLoading = false;
 
@@ -26,37 +22,36 @@ class _LanguagesScreenState extends State<LanguagesScreen> {
     _loadSelectedLanguage();
   }
 
-  String get selectedLangCode => selectedIndex == 0 ? 'en' : 'hi';
+  String get selectedLangCode => languageCodes[selectedIndex];
 
   Future<void> _loadSelectedLanguage() async {
     final prefs = await SharedPreferences.getInstance();
-    final savedLang = prefs.getString('selected_language_code') ?? 'en';
+    final savedLang = prefs.getString('app_language') ?? 'en';
     setState(() {
-      selectedIndex = savedLang == 'hi' ? 1 : 0;
+      selectedIndex = languageCodes.indexOf(savedLang);
+      if (selectedIndex == -1) selectedIndex = 0;
+      AppStrings.setLanguage(languageCodes[selectedIndex]);
     });
   }
 
   Future<void> _persistSelectedLanguage(String langCode) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('selected_language_code', langCode);
+    await prefs.setString('app_language', langCode);
   }
 
-  /// Save selected language, notify main.dart, pop to previous screen, then restart the app.
+  /// Save selected language, notify parent via callback, pop to previous screen.
   Future<void> _saveLanguage() async {
     setState(() => isLoading = true);
     await _persistSelectedLanguage(selectedLangCode);
+    AppStrings.setLanguage(selectedLangCode); // update language globally
     widget.onLanguageChanged(selectedLangCode);
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Language updated successfully!')),
+      SnackBar(content: Text(AppStrings.getString("languageUpdatedSuccessfully") ?? "Language updated successfully!")),
     );
 
-    // Pop back to home and then restart app
     Navigator.of(context).pop(); // Pop LanguagesScreen
-    // Short delay to ensure UI transition then restart
-    await Future.delayed(const Duration(milliseconds: 250));
-    Restart.restartApp();
   }
 
   @override
@@ -67,6 +62,12 @@ class _LanguagesScreenState extends State<LanguagesScreen> {
     const darkText = Color(0xFF265E85);
     const hintText = Color(0xFF6C8A93);
 
+    // Language names using localization
+    final List<String> languages = [
+      AppStrings.getString("english") ?? "English",
+      AppStrings.getString("हिन्दी") ?? "Hindi",
+    ];
+
     return Scaffold(
       backgroundColor: background,
       appBar: PreferredSize(
@@ -75,9 +76,9 @@ class _LanguagesScreenState extends State<LanguagesScreen> {
           backgroundColor: accent,
           leading: const BackButton(color: Colors.white),
           elevation: 0,
-          title: const Text(
-            "Change Language",
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+          title: Text(
+            AppStrings.getString("changeLanguage"),
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
           ),
           centerTitle: true,
           shape: const RoundedRectangleBorder(
@@ -94,7 +95,7 @@ class _LanguagesScreenState extends State<LanguagesScreen> {
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  "Selected Language",
+                  AppStrings.getString("selectedLanguage"),
                   style: TextStyle(
                     color: hintText,
                     fontSize: 15,
@@ -121,7 +122,7 @@ class _LanguagesScreenState extends State<LanguagesScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    "All Languages",
+                    AppStrings.getString("allLanguages"),
                     style: TextStyle(
                       color: darkText,
                       fontSize: 17,
@@ -140,7 +141,10 @@ class _LanguagesScreenState extends State<LanguagesScreen> {
                 itemCount: languages.length,
                 separatorBuilder: (_, __) => const SizedBox(height: 12),
                 itemBuilder: (context, idx) => GestureDetector(
-                  onTap: () => setState(() => selectedIndex = idx),
+                  onTap: () => setState(() {
+                    selectedIndex = idx;
+                    AppStrings.setLanguage(languageCodes[selectedIndex]);
+                  }),
                   child: _LanguageCard(
                     language: languages[idx],
                     selected: idx == selectedIndex,
@@ -172,8 +176,8 @@ class _LanguagesScreenState extends State<LanguagesScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        "Save Settings",
-                        style: TextStyle(
+                        AppStrings.getString("saveSetting"),
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 19,
                           fontWeight: FontWeight.bold,
@@ -233,13 +237,13 @@ class _LanguageCard extends StatelessWidget {
             width: 38,
             height: 38,
             decoration: BoxDecoration(
-              color: selected ? Colors.white.withOpacity(0.8) : Color(0xFFF3F6F8),
+              color: selected ? Colors.white.withOpacity(0.8) : const Color(0xFFF3F6F8),
               shape: BoxShape.circle,
             ),
             child: Center(
               child: Icon(
                 Icons.language,
-                color: selected ? accent : Color(0xFFB1C6CB),
+                color: selected ? accent : const Color(0xFFB1C6CB),
                 size: 23,
               ),
             ),
@@ -261,7 +265,7 @@ class _LanguageCard extends StatelessWidget {
             height: 24,
             decoration: BoxDecoration(
               border: Border.all(
-                color: selected ? Colors.white : Color(0xFFB1C6CB),
+                color: selected ? Colors.white : const Color(0xFFB1C6CB),
                 width: 2.5,
               ),
               shape: BoxShape.circle,
@@ -272,7 +276,7 @@ class _LanguageCard extends StatelessWidget {
               child: Container(
                 width: 12,
                 height: 12,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   color: Colors.white,
                   shape: BoxShape.circle,
                 ),
