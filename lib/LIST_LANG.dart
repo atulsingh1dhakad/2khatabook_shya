@@ -101,13 +101,55 @@ class AppStrings {
     "selectedLanguage": "Selected Language",
     "backupAndDeleteAccount": "Backup And Delete Account",
     "cloudStorage": "Cloud Storage",
-    "easilyBackupData": "Easily Backup All Your Data On Cloud Storage",
-    "quickBackupRestore": "Quick Backup & Restore",
-    "turnOnBackup": "Turn On Backup",
-    "settledUp": "Settled Up", // "सेटिल्ड अप"
-    "dateRemark": "Date/Remark", // "तिथि/टिप्पणी"
-    "noEntryAvailable": "No entry available, add now", // "कोई प्रविष्टि उपलब्ध नहीं है, अभी जोड़ें"
-    "loading": "Loading...", //
+    "easilyBackupData": "Easily backup all your data on Cloud Storage",
+    "quickBackupRestore": "Quick Backup & Restore Cloud Storage",
+    "turnOnBackup": "Turn on Backup",
+    "settledUp": "Settled Up",
+    "dateRemark": "Date/Remark",
+    "noEntryAvailable": "No entry available, add now",
+    "loading": "Loading...",
+    "security": "Security",
+    "securityNumber": "Security Number",
+    "saveSecurityNumber": "Save Security Number",
+    "appVersion": "App Version",
+    "permissionDenied": "Permission Denied",
+    "noPermissionForThisAction": "You don't have permission for this action.",
+    "deleteAllPermanently": "Delete All Permanently",
+    "entryDeleted": "Entry deleted",
+    "permanentDeleteNotImplemented": "Permanent delete not implemented.",
+    "failedToLoadRecycleBin": "Failed to load recycle bin.",
+    "serverError": "Server error",
+    "undoDelete": "Undo Delete",
+    "confirmUndoDelete": "Are you sure you want to restore this item?",
+    "deletePermanently": "Delete Permanently",
+    "confirmDeletePermanently": "Are you sure you want to permanently delete this item?",
+    "deleteAll": "Delete All",
+    "confirmDeleteAllPermanently": "Are you sure you want to permanently delete all items in the recycle bin? This action cannot be undone.",
+    "failedToRestoreLedger": "Failed to restore ledger.",
+    "justNow": "just now",
+    "minutesAgo": "{n} minutes ago",
+    "hoursAgo": "{n} hours ago",
+    "daysAgo": "{n} days ago",
+    "entryDeletedAgo": "Entry deleted {time}",
+    "customerDeletedAgo": "Customer deleted {time}",
+    "entryFrom": "Entry from {source}",
+    "customerFrom": "Customer from {source}",
+    "failedToUpdateBackupStatus": "Failed to update backup status",
+    "failedToDeleteBackup": "Failed to delete backup",
+    "filters": "Filetrs",
+    "filerBy":"FirlerBy",
+    "all":"All",
+    "sortBy":"Sort By",
+    "noneSort":"None",
+    "mostRecent":"Most Recent",
+    "highestAmount":"Highest Amount",
+    "byNameSort":"By Name",
+    "oldestSort":"Oldest Sort",
+    "leastAMount":"Least Amount",
+    "viewResult":"View Result",
+    "noRecords":"No Records Found",
+    "downloadPdf":"Download PDF",
+    "downloadxl":"Download Excel",
 
   };
 
@@ -166,11 +208,59 @@ class AppStrings {
     "allLanguages": "सभी भाषाएँ",
     "saveSetting": "सेटिंग सहेजें",
     "selectedLanguage": "चयनित भाषा",
-    "backupAndDeleteAccount": "बैकअप लें और खाता हटाएं",
+    "backupAndDeleteAccount": "बैकअप लें और अकाउंट हटाएं",
     "cloudStorage": "क्लाउड स्टोरेज",
-    "easilyBackupData": "अपने सभी डेटा का आसानी से क्लाउड स्टोरेज पर बैकअप लें",
-    "quickBackupRestore": "त्वरित बैकअप और पुनर्स्थापना",
-    "turnOnBackup": "बैकअप चालू करें"
+    "easilyBackupData": "अपने सभी डेटा का क्लाउड स्टोरेज पर आसानी से बैकअप लें",
+    "quickBackupRestore": "त्वरित बैकअप और क्लाउड स्टोरेज",
+    "turnOnBackup": "बैकअप चालू करें",
+    "settledUp": "सेटिल्ड अप",
+    "dateRemark": "तिथि/टिप्पणी",
+    "noEntryAvailable": "कोई प्रविष्टि उपलब्ध नहीं है, अभी जोड़ें",
+    "loading": "लोड हो रहा है...",
+    "security": "सुरक्षा",
+    "securityNumber": "सुरक्षा संख्या",
+    "saveSecurityNumber": "सुरक्षा नंबर सहेजें",
+    "appVersion": "ऐप संस्करण",
+    "permissionDenied": "अनुमति अस्वीकृत",
+    "noPermissionForThisAction": "इस क्रिया के लिए आपके पास अनुमति नहीं है।",
+    "deleteAllPermanently": "सभी को स्थायी रूप से हटा दें",
+    "entryDeleted": "प्रविष्टि हटा दी गई",
+    "permanentDeleteNotImplemented": "स्थायी रूप से हटाना लागू नहीं है।",
+    "failedToLoadRecycleBin": "रिसायकल बिन लोड करने में विफल।",
+    "serverError": "सर्वर त्रुटि",
+    "undoDelete": "पूर्ववत हटाएं",
+    "confirmUndoDelete": "क्या आप वाकई इस आइटम को पुनर्स्थापित करना चाहते हैं?",
+    "deletePermanently": "स्थायी रूप से हटाएं",
+    "confirmDeletePermanently": "क्या आप वाकई इस आइटम को स्थायी रूप से हटाना चाहते हैं?",
+    "deleteAll": "सभी हटाएं",
+    "confirmDeleteAllPermanently": "क्या आप वाकई रिसायकल बिन में सभी आइटम्स को स्थायी रूप से हटाना चाहते हैं? यह कार्रवाई पूर्ववत नहीं की जा सकती।",
+    "failedToRestoreLedger": "लेजर पुनर्स्थापित करने में विफल।",
+    "justNow": "अभी",
+    "minutesAgo": "{n} मिनट पहले",
+    "hoursAgo": "{n} घंटे पहले",
+    "daysAgo": "{n} दिन पहले",
+    "entryDeletedAgo": "प्रविष्टि {time} हटाई गई",
+    "customerDeletedAgo": "ग्राहक {time} हटाया गया",
+    "entryFrom": "{source} से प्रविष्टि",
+    "customerFrom": "{source} से ग्राहक",
+    "failedToUpdateBackupStatus": "बैकअप स्थिति अपडेट करने में विफल",
+    "failedToDeleteBackup": "बैकअप हटाना विफल",
+    "filters": "फिल्टर",
+    "filerBy":"के द्वारा फिल्टर ",
+    "all":"सब",
+    "sortBy":"क्रमबद्ध करें ",
+    "noneSort":"कोई भी सॉर्ट नहीं ",
+    "mostRecent":"सबसे हाल का",
+    "highestAmount":"उच्चतम राशि",
+    "byNameSort":"नाम क्रम से",
+    "oldestSort":"सबसे पुराना क्रम से",
+    "leastAmount":"सबसे कम राशि",
+    "viewResult":"नतीजा देखें ",
+    "noRecords":"कोई रिकॉर्ड नहीं मिला",
+    "downloadPdf":"पीडीएफ डाउनलोड करें",
+    "downloadxl":"एक्सएल डाउनलोड करें",
+
+
   };
 
   // ---- All string keys for code completion and safety ----
@@ -232,4 +322,30 @@ class AppStrings {
   static const easilyBackupData = 'easilyBackupData';
   static const quickBackupRestore = 'quickBackupRestore';
   static const turnOnBackup = 'turnOnBackup';
+  static const security = 'security';
+  static const securityNumber = 'securityNumber';
+  static const saveSecurityNumber = 'saveSecurityNumber';
+  static const appVersion = 'appVersion';
+  static const permissionDenied = 'permissionDenied';
+  static const noPermissionForThisAction = 'noPermissionForThisAction';
+  static const deleteAllPermanently = 'deleteAllPermanently';
+  static const entryDeleted = 'entryDeleted';
+  static const permanentDeleteNotImplemented = 'permanentDeleteNotImplemented';
+  static const failedToLoadRecycleBin = 'failedToLoadRecycleBin';
+  static const serverError = 'serverError';
+  static const undoDelete = 'undoDelete';
+  static const confirmUndoDelete = 'confirmUndoDelete';
+  static const deletePermanently = 'deletePermanently';
+  static const confirmDeletePermanently = 'confirmDeletePermanently';
+  static const deleteAll = 'deleteAll';
+  static const confirmDeleteAllPermanently = 'confirmDeleteAllPermanently';
+  static const failedToRestoreLedger = 'failedToRestoreLedger';
+  static const justNow = 'justNow';
+  static const minutesAgo = 'minutesAgo';
+  static const hoursAgo = 'hoursAgo';
+  static const daysAgo = 'daysAgo';
+  static const entryDeletedAgo = 'entryDeletedAgo';
+  static const customerDeletedAgo = 'customerDeletedAgo';
+  static const entryFrom = 'entryFrom';
+  static const customerFrom = 'customerFrom';
 }
