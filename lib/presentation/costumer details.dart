@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:math';
 import 'package:Calculator/presentation/sidebarscreen.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -34,7 +33,6 @@ class CustomerDetails extends StatefulWidget {
 class _CustomerDetailsState extends State<CustomerDetails>
     with WidgetsBindingObserver, RouteAware {
   bool isLoading = true;
-  bool isDeleting = false;
   String? errorMessage;
   List<dynamic> ledger = [];
   double totalCredit = 0;
@@ -44,11 +42,101 @@ class _CustomerDetailsState extends State<CustomerDetails>
   String accountRemark = '';
   bool dataChanged = false;
 
+  // Permission control
+  bool _accessLoaded = false;
+  bool _isViewOnly = false;
+  String _userType = '';
+  String _userId = '';
+  String _companyPermission = '';
+
   @override
   void initState() {
     super.initState();
-    fetchAllData();
     WidgetsBinding.instance.addObserver(this);
+    _fetchUserInfoAndAccess();
+    fetchAllData();
+  }
+
+  Future<void> _fetchUserInfoAndAccess() async {
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String? userId = prefs.getString("userId");
+      String? userType = prefs.getString("userType");
+      print("DEBUG: prefs[userId]=$userId, prefs[userType]=$userType");
+      setState(() {
+        _userType = userType ?? '';
+        _userId = userId ?? '';
+      });
+      if ((_userId).isEmpty || (_userType).isEmpty) {
+        print('ERROR: userId or userType is empty! Check login logic and shared preferences.');
+      }
+      if (_userId.isNotEmpty) {
+        await _fetchUserAccess(_userId, widget.companyId);
+      } else {
+        setState(() {
+          _accessLoaded = true;
+          _isViewOnly = false;
+          _companyPermission = '';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _userType = '';
+        _userId = '';
+        _accessLoaded = true;
+        _isViewOnly = false;
+        _companyPermission = '';
+      });
+    }
+  }
+
+  Future<void> _fetchUserAccess(String userId, String companyId) async {
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      final authKey = prefs.getString("auth_token");
+      print("DEBUG: Fetching company access for userId=$userId, companyId=$companyId");
+      final url = "http://account.galaxyex.xyz/v1/user/api//account/get-access/$userId";
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          "Authkey": authKey ?? "",
+          "Content-Type": "application/json",
+        },
+      );
+      bool viewOnly = false;
+      String permission = '';
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> jsonData = json.decode(response.body);
+        print("DEBUG: get-access response: $jsonData");
+        // FIX: Use jsonData['data']['compnayDetails'] because it's nested!
+        final List compDetails = (jsonData['data']['compnayDetails'] ?? []);
+        for (final c in compDetails) {
+          print("DEBUG: companyId in response: ${c['companyId']} (looking for $companyId)");
+        }
+        final access = compDetails.firstWhere(
+              (c) => c['companyId'].toString() == companyId,
+          orElse: () => null,
+        );
+        if (access != null) {
+          permission = access['action']?.toString() ?? '';
+          if (permission.toUpperCase() == 'VIEW') {
+            viewOnly = true;
+          }
+        }
+      }
+      setState(() {
+        _accessLoaded = true;
+        _isViewOnly = viewOnly;
+        _companyPermission = permission;
+      });
+      print("PERMISSION FROM BACKEND FOR COMPANY $companyId: $_companyPermission");
+    } catch (e) {
+      setState(() {
+        _accessLoaded = true;
+        _isViewOnly = false;
+        _companyPermission = '';
+      });
+    }
   }
 
   @override
@@ -104,9 +192,7 @@ class _CustomerDetailsState extends State<CustomerDetails>
     final url =
         "http://account.galaxyex.xyz/v1/user/api//account/get-account-details/${widget.accountId}";
     final authKey = await getAuthToken();
-    if (authKey == null) {
-      throw Exception("Authentication token missing. Please log in.");
-    }
+    if (authKey == null) throw Exception("Authentication token missing. Please log in.");
     final response = await http.get(Uri.parse(url), headers: {
       "Authkey": authKey,
       "Content-Type": "application/json",
@@ -120,12 +206,10 @@ class _CustomerDetailsState extends State<CustomerDetails>
           accountRemark = jsonData['data']?['remark'] ?? "";
         });
       } else {
-        throw Exception(
-            jsonData['meta']?['msg'] ?? "Failed to fetch account name");
+        throw Exception(jsonData['meta']?['msg'] ?? "Failed to fetch account name");
       }
     } else {
-      throw Exception(
-          "Server error fetching account name: ${response.statusCode}");
+      throw Exception("Server error fetching account name: ${response.statusCode}");
     }
   }
 
@@ -133,10 +217,7 @@ class _CustomerDetailsState extends State<CustomerDetails>
     final url =
         "http://account.galaxyex.xyz/v1/user/api//account/get-ledger/${widget.accountId}";
     final authKey = await getAuthToken();
-    if (authKey == null) {
-      throw Exception("Authentication token missing. Please log in.");
-    }
-
+    if (authKey == null) throw Exception("Authentication token missing. Please log in.");
     final response = await http.get(Uri.parse(url), headers: {
       "Authkey": authKey,
       "Content-Type": "application/json",
@@ -149,14 +230,11 @@ class _CustomerDetailsState extends State<CustomerDetails>
         setState(() {
           ledger = jsonData['data'] ?? [];
           totalCredit = double.tryParse(
-              jsonData['totals']?['totalCreditAmount']?.toString() ?? "0") ??
-              0;
+              jsonData['totals']?['totalCreditAmount']?.toString() ?? "0") ?? 0;
           totalDebit = double.tryParse(
-              jsonData['totals']?['totalDebitAmount']?.toString() ?? "0") ??
-              0;
+              jsonData['totals']?['totalDebitAmount']?.toString() ?? "0") ?? 0;
           totalBalance = double.tryParse(
-              jsonData['totals']?['totalBalance']?.toString() ?? "0") ??
-              0;
+              jsonData['totals']?['totalBalance']?.toString() ?? "0") ?? 0;
         });
       } else {
         setState(() {
@@ -176,6 +254,37 @@ class _CustomerDetailsState extends State<CustomerDetails>
     }
   }
 
+  Future<void> _handleEntryChange(Future<dynamic> future) async {
+    final value = await future;
+    if (value == true) {
+      await fetchAllData();
+      setState(() {
+        dataChanged = true;
+      });
+    }
+  }
+
+  Future<bool> _onWillPop() async {
+    Navigator.pop(context, dataChanged);
+    return false;
+  }
+
+  void _showNoPermissionDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Permission Denied"),
+        content: const Text("You don't have permission for this action."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text("OK"),
+          ),
+        ],
+      ),
+    );
+  }
+
   String formatDateTime(int milliseconds) {
     final dt = DateTime.fromMillisecondsSinceEpoch(milliseconds);
     final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
@@ -188,18 +297,7 @@ class _CustomerDetailsState extends State<CustomerDetails>
 
   String _monthName(int month) {
     const months = [
-      "Jan",
-      "Feb",
-      "Mar",
-      "Apr",
-      "May",
-      "Jun",
-      "Jul",
-      "Aug",
-      "Sep",
-      "Oct",
-      "Nov",
-      "Dec"
+      "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"
     ];
     return months[(month - 1).clamp(0, 11)];
   }
@@ -208,18 +306,15 @@ class _CustomerDetailsState extends State<CustomerDetails>
     double sum = 0;
     List<double> balances = List.filled(ledger.length, 0);
     for (int i = ledger.length - 1; i >= 0; i--) {
-      final credit =
-          double.tryParse(ledger[i]['creditAmount']?.toString() ?? "0") ?? 0;
-      final debit =
-          double.tryParse(ledger[i]['debitAmount']?.toString() ?? "0") ?? 0;
+      final credit = double.tryParse(ledger[i]['creditAmount']?.toString() ?? "0") ?? 0;
+      final debit = double.tryParse(ledger[i]['debitAmount']?.toString() ?? "0") ?? 0;
       sum += credit - debit;
       balances[i] = sum;
     }
     return balances;
   }
 
-  double _getResponsiveFontSize(String value, double maxWidth,
-      {double minFont = 10, double maxFont = 14.5}) {
+  double _getResponsiveFontSize(String value, double maxWidth, {double minFont = 10, double maxFont = 14.5}) {
     for (double font = maxFont; font >= minFont; font -= 0.5) {
       final estWidth = value.length * font * 0.58;
       if (estWidth <= maxWidth) return font;
@@ -228,8 +323,7 @@ class _CustomerDetailsState extends State<CustomerDetails>
   }
 
   Widget buildLedgerItem(Map<String, dynamic> entry, double runningBalance) {
-    final credit =
-        double.tryParse(entry['creditAmount']?.toString() ?? "0") ?? 0;
+    final credit = double.tryParse(entry['creditAmount']?.toString() ?? "0") ?? 0;
     final debit = double.tryParse(entry['debitAmount']?.toString() ?? "0") ?? 0;
     final dateMillis = entry['ledgerDate'] ?? 0;
     final remark = entry['remark'] ?? "";
@@ -239,7 +333,6 @@ class _CustomerDetailsState extends State<CustomerDetails>
         ? "-₹${runningBalance.abs().toStringAsFixed(2)}"
         : "₹${runningBalance.toStringAsFixed(2)}");
 
-    // Handle path as String or List<String>
     List<String> imageUrls = [];
     dynamic path = entry['path'];
     if (path is String && path.isNotEmpty) {
@@ -277,8 +370,7 @@ class _CustomerDetailsState extends State<CustomerDetails>
           final creditText = credit == 0 ? "" : "₹${credit.toStringAsFixed(2)}";
 
           final debitFontSize = _getResponsiveFontSize(debitText, debitMaxWidth);
-          final creditFontSize =
-          _getResponsiveFontSize(creditText, creditMaxWidth);
+          final creditFontSize = _getResponsiveFontSize(creditText, creditMaxWidth);
 
           return Container(
             margin: const EdgeInsets.symmetric(vertical: 7),
@@ -292,7 +384,6 @@ class _CustomerDetailsState extends State<CustomerDetails>
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Column for date, balance, remark, then attachment image
                   Expanded(
                     flex: 7,
                     child: Column(
@@ -338,7 +429,6 @@ class _CustomerDetailsState extends State<CustomerDetails>
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                        // Show all attachments as images
                         if (imageUrls.isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.only(top: 6.0),
@@ -372,7 +462,6 @@ class _CustomerDetailsState extends State<CustomerDetails>
                       ],
                     ),
                   ),
-                  // Credit/Debit Columns
                   Expanded(
                     flex: 7,
                     child: Row(
@@ -438,21 +527,6 @@ class _CustomerDetailsState extends State<CustomerDetails>
     );
   }
 
-  Future<void> _handleEntryChange(Future<dynamic> future) async {
-    final value = await future;
-    if (value == true) {
-      await fetchAllData();
-      setState(() {
-        dataChanged = true;
-      });
-    }
-  }
-
-  Future<bool> _onWillPop() async {
-    Navigator.pop(context, dataChanged);
-    return false;
-  }
-
   @override
   Widget build(BuildContext context) {
     final double displayCredit = totalCredit;
@@ -478,6 +552,19 @@ class _CustomerDetailsState extends State<CustomerDetails>
     }
 
     final reversedRunningBalances = _reversedRunningBalances();
+
+    // Disable if staff with "VIEW" permission or while access is loading
+    bool disableButtons = false;
+    if (_userType.trim().toUpperCase() == "STAFF") {
+      disableButtons = !_accessLoaded || _isViewOnly;
+    }
+
+    print(
+        "DEBUG: accessLoaded=$_accessLoaded, "
+            "isViewOnly=$_isViewOnly, "
+            "userType=$_userType, "
+            "companyPermission=$_companyPermission"
+    );
 
     return WillPopScope(
       onWillPop: _onWillPop,
@@ -514,8 +601,12 @@ class _CustomerDetailsState extends State<CustomerDetails>
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.edit, color: Colors.white),
-                          onPressed: () async {
+                          icon: Icon(Icons.edit, color: disableButtons ? Colors.grey[300] : Colors.white),
+                          onPressed: disableButtons
+                              ? () {
+                            _showNoPermissionDialog();
+                          }
+                              : () async {
                             final result = await Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -536,6 +627,19 @@ class _CustomerDetailsState extends State<CustomerDetails>
                             }
                           },
                         ),
+                        if (_companyPermission.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 8, right: 8),
+                            child: Text(
+                              '(${_companyPermission.toUpperCase()})',
+                              style: const TextStyle(
+                                color: Colors.amber,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 10,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -692,7 +796,11 @@ class _CustomerDetailsState extends State<CustomerDetails>
                   children: [
                     Expanded(
                       child: ElevatedButton(
-                        onPressed: () {
+                        onPressed: disableButtons
+                            ? () {
+                          _showNoPermissionDialog();
+                        }
+                            : () {
                           _handleEntryChange(
                             Navigator.push(
                               context,
@@ -707,7 +815,7 @@ class _CustomerDetailsState extends State<CustomerDetails>
                           );
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xffc96868),
+                          backgroundColor: disableButtons ? Colors.grey[400] : const Color(0xffc96868),
                           padding: const EdgeInsets.symmetric(
                               vertical: 14),
                           shape: RoundedRectangleBorder(
@@ -725,7 +833,11 @@ class _CustomerDetailsState extends State<CustomerDetails>
                     const SizedBox(width: 16),
                     Expanded(
                       child: ElevatedButton(
-                        onPressed: () {
+                        onPressed: disableButtons
+                            ? () {
+                          _showNoPermissionDialog();
+                        }
+                            : () {
                           _handleEntryChange(
                             Navigator.push(
                               context,
@@ -740,7 +852,7 @@ class _CustomerDetailsState extends State<CustomerDetails>
                           );
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF198754),
+                          backgroundColor: disableButtons ? Colors.grey[400] : const Color(0xFF198754),
                           padding: const EdgeInsets.symmetric(
                               vertical: 14),
                           shape: RoundedRectangleBorder(
