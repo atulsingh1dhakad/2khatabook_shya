@@ -270,7 +270,7 @@ class _ChangePassState extends State<ChangePass> {
                       textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
                     ),
                     onPressed: _changePassword,
-                    child: Text(AppStrings.getString("changePasswordButton")),
+                    child: Text(AppStrings.getString("changePassword")),
                   ),
                 ),
                 const SizedBox(height: 36),
