@@ -1,9 +1,13 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_file_downloader/flutter_file_downloader.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:open_file/open_file.dart';
+import 'package:excel/excel.dart' hide Border;
 import '../LIST_LANG.dart';
 
 class ReportScreen extends StatefulWidget {
@@ -17,6 +21,7 @@ class ReportScreen extends StatefulWidget {
 class _ReportScreenState extends State<ReportScreen> {
   bool isLoading = true;
   bool isDownloading = false;
+  bool isExcelGenerating = false;
   String? errorMessage;
   List<Map<String, dynamic>> ledgerList = [];
   Map<String, dynamic> totals = {};
@@ -27,6 +32,30 @@ class _ReportScreenState extends State<ReportScreen> {
   void initState() {
     super.initState();
     fetchReport();
+  }
+
+  Future<bool> requestStoragePermission() async {
+    if (!Platform.isAndroid) return true;
+    int sdkInt = 30;
+    try {} catch (_) {}
+    if (sdkInt >= 30) {
+      var status = await Permission.manageExternalStorage.status;
+      if (!status.isGranted) {
+        status = await Permission.manageExternalStorage.request();
+        if (!status.isGranted) {
+          await openAppSettings();
+          return false;
+        }
+      }
+      return true;
+    } else {
+      var status = await Permission.storage.status;
+      if (!status.isGranted) {
+        status = await Permission.storage.request();
+        if (!status.isGranted) return false;
+      }
+      return true;
+    }
   }
 
   Future<void> fetchReport() async {
@@ -181,24 +210,12 @@ class _ReportScreenState extends State<ReportScreen> {
       isDownloading = true;
     });
     try {
-      if (await Permission.storage.request().isDenied) {
+      if (!await requestStoragePermission()) {
         setState(() {
           isDownloading = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Storage permission denied.")),
-        );
-        return;
-      }
-
-      final prefs = await SharedPreferences.getInstance();
-      final authKey = prefs.getString("auth_token");
-      if (authKey == null) {
-        setState(() {
-          isDownloading = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppStrings.getString("authTokenMissing"))),
         );
         return;
       }
@@ -251,66 +268,82 @@ class _ReportScreenState extends State<ReportScreen> {
         };
       }).toList();
 
-      final Map<String, dynamic> requestBody = {
+      final Map<String, String> queryParams = {
         "companyName": companyName,
         "updateAt": nowString,
         "totelCredit": totals['totalCreditAmount']?.toString() ?? "0.00",
         "totelDebit": totals['totalDebitAmount']?.toString() ?? "0.00",
         "totelBalance": totals['totalBalance']?.toString() ?? "0.00",
-        "row": rows,
+        "row": jsonEncode(rows),
       };
 
-      final url = "http://account.galaxyex.xyz/v1/user/api//account/generate-pdf";
-      final response = await http.post(
-        Uri.parse(url),
-        headers: {
-          "Authkey": authKey,
-          "Content-Type": "application/json",
-        },
-        body: jsonEncode(requestBody),
+      final uri = Uri.http(
+        "account.galaxyex.xyz",
+        "/v1/user/api/account/generate-pdf",
+        queryParams,
       );
 
+      final response = await http.get(uri);
+
       if (response.statusCode == 200) {
-        try {
-          final Map<String, dynamic> jsonResp = json.decode(response.body);
-          if (jsonResp['downloadUrl'] != null) {
-            String downloadUrl = jsonResp['downloadUrl'];
-            FileDownloader.downloadFile(
-              url: downloadUrl,
-              name: "report_${DateTime.now().millisecondsSinceEpoch}.pdf",
-              onDownloadCompleted: (path) {
-                setState(() {
-                  isDownloading = false;
-                });
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("PDF downloaded: $path")),
-                );
-              },
-              onDownloadError: (String error) {
-                setState(() {
-                  isDownloading = false;
-                });
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("Failed to download PDF: $error")),
-                );
-              },
-              notificationType: NotificationType.all,
-            );
-          } else {
-            setState(() {
-              isDownloading = false;
-            });
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text("Failed to retrieve PDF download URL.")),
-            );
-          }
-        } catch (e) {
+        if (response.bodyBytes.length > 4 &&
+            response.bodyBytes[0] == 0x25 &&
+            response.bodyBytes[1] == 0x50 &&
+            response.bodyBytes[2] == 0x44 &&
+            response.bodyBytes[3] == 0x46) {
+          final directory = await getApplicationDocumentsDirectory();
+          final filePath = '${directory.path}/report_${DateTime.now().millisecondsSinceEpoch}.pdf';
+          final file = File(filePath);
+          await file.writeAsBytes(response.bodyBytes);
           setState(() {
             isDownloading = false;
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Failed to parse PDF download response.")),
+            SnackBar(content: Text("PDF downloaded: $filePath")),
           );
+          await OpenFile.open(filePath);
+        } else {
+          try {
+            final Map<String, dynamic> jsonResp = json.decode(response.body);
+            if (jsonResp['downloadUrl'] != null) {
+              String downloadUrl = jsonResp['downloadUrl'];
+              FileDownloader.downloadFile(
+                url: downloadUrl,
+                name: "report_${DateTime.now().millisecondsSinceEpoch}.pdf",
+                onDownloadCompleted: (path) {
+                  setState(() {
+                    isDownloading = false;
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("PDF downloaded: $path")),
+                  );
+                },
+                onDownloadError: (String error) {
+                  setState(() {
+                    isDownloading = false;
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Failed to download PDF: $error")),
+                  );
+                },
+                notificationType: NotificationType.all,
+              );
+            } else {
+              setState(() {
+                isDownloading = false;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text("Failed to retrieve PDF download URL.")),
+              );
+            }
+          } catch (e) {
+            setState(() {
+              isDownloading = false;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text("Failed to parse PDF download response.")),
+            );
+          }
         }
       } else {
         setState(() {
@@ -326,6 +359,144 @@ class _ReportScreenState extends State<ReportScreen> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Error: $e")),
+      );
+    }
+  }
+
+  Future<void> downloadExcel() async {
+    setState(() {
+      isExcelGenerating = true;
+    });
+    try {
+      if (!await requestStoragePermission()) {
+        setState(() {
+          isExcelGenerating = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Storage permission denied.")),
+        );
+        return;
+      }
+
+      String getFormattedDate(DateTime date) {
+        final h = date.hour % 12 == 0 ? 12 : date.hour % 12;
+        final ampm = date.hour < 12 ? "AM" : "PM";
+        final min = date.minute.toString().padLeft(2, '0');
+        return "${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year} ${h.toString().padLeft(2, '0')}:$min $ampm";
+      }
+
+      String nowString = getFormattedDate(DateTime.now());
+      String companyName = "Company Name";
+      if (ledgerList.isNotEmpty && ledgerList[0]['companyName'] != null) {
+        companyName = ledgerList[0]['companyName'];
+      }
+
+      List<Map<String, dynamic>> displayedLedgerList = ledgerList.where((entry) {
+        int millis = int.tryParse(entry['ledgerDate']?.toString() ?? "0") ?? 0;
+        if (millis == 0) return false;
+        DateTime entryDate = DateTime.fromMillisecondsSinceEpoch(millis);
+        if (startDate != null && entryDate.isBefore(DateTime(startDate!.year, startDate!.month, startDate!.day))) {
+          return false;
+        }
+        if (endDate != null && entryDate.isAfter(DateTime(endDate!.year, endDate!.month, endDate!.day, 23, 59, 59, 999))) {
+          return false;
+        }
+        return true;
+      }).toList();
+
+      displayedLedgerList.sort((a, b) {
+        int aDate = int.tryParse(a['ledgerDate']?.toString() ?? "0") ?? 0;
+        int bDate = int.tryParse(b['ledgerDate']?.toString() ?? "0") ?? 0;
+        return bDate.compareTo(aDate);
+      });
+
+      String totalDebit = totals['totalDebitAmount']?.toString() ?? "0.00";
+      String totalCredit = totals['totalCreditAmount']?.toString() ?? "0.00";
+      String totalBalance = totals['totalBalance']?.toString() ?? "0.00";
+
+      final excel = Excel.createExcel();
+      Sheet? sheet = excel['Sheet1'];
+      sheet ??= excel[excel.getDefaultSheet() ?? 'Sheet1'];
+
+      // Header info
+      sheet.appendRow([
+        TextCellValue("Company Name"), TextCellValue(companyName)
+      ]);
+      sheet.appendRow([
+        TextCellValue("Last Updated"), TextCellValue(nowString)
+      ]);
+      sheet.appendRow([TextCellValue("")]);
+
+      // Summary row
+      sheet.appendRow([
+        TextCellValue("Total Credit"),
+        TextCellValue("Total Debit"),
+        TextCellValue("Total Balance"),
+      ]);
+      sheet.appendRow([
+        TextCellValue(totalCredit),
+        TextCellValue(totalDebit),
+        TextCellValue(totalBalance),
+      ]);
+      sheet.appendRow([TextCellValue("")]);
+
+      // Table header
+      sheet.appendRow([
+        TextCellValue("Username"),
+        TextCellValue("Debit Amount"),
+        TextCellValue("Credit Amount"),
+        TextCellValue("Balance"),
+        TextCellValue("Ledger Date"),
+      ]);
+
+      for (final entry in displayedLedgerList) {
+        int millis = int.tryParse(entry['ledgerDate']?.toString() ?? "0") ?? 0;
+        String ledgerDate;
+        if (millis != 0) {
+          final d = DateTime.fromMillisecondsSinceEpoch(millis);
+          final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
+          final ampm = d.hour < 12 ? "AM" : "PM";
+          final min = d.minute.toString().padLeft(2, '0');
+          ledgerDate = "${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year} ${h.toString().padLeft(2, '0')}:$min $ampm";
+        } else {
+          ledgerDate = "-";
+        }
+        sheet.appendRow([
+          TextCellValue(entry['username'] ?? ""),
+          TextCellValue(entry['debitAmount']?.toString() ?? ""),
+          TextCellValue(entry['creditAmount']?.toString() ?? ""),
+          TextCellValue(entry['balance']?.toString() ?? ""),
+          TextCellValue(ledgerDate),
+        ]);
+      }
+      if (displayedLedgerList.isEmpty) {
+        sheet.appendRow([
+          TextCellValue('No records found'),
+          TextCellValue(''),
+          TextCellValue(''),
+          TextCellValue(''),
+          TextCellValue(''),
+        ]);
+      }
+      final directory = await getApplicationDocumentsDirectory();
+      final filePath = "${directory.path}/report_${DateTime.now().millisecondsSinceEpoch}.xlsx";
+      final fileBytes = excel.encode();
+      final file = File(filePath);
+      await file.writeAsBytes(fileBytes!);
+
+      setState(() {
+        isExcelGenerating = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Excel downloaded: $filePath")),
+      );
+      await OpenFile.open(filePath);
+    } catch (e) {
+      setState(() {
+        isExcelGenerating = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error generating Excel: $e")),
       );
     }
   }
@@ -371,7 +542,7 @@ class _ReportScreenState extends State<ReportScreen> {
         elevation: 0,
         leading: const BackButton(color: Colors.white),
       ),
-      backgroundColor: const Color(0xFFF7F8FA),
+      backgroundColor: const Color(0xFFEAEAEA),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : errorMessage != null
@@ -390,7 +561,7 @@ class _ReportScreenState extends State<ReportScreen> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
             child: Row(
               children: [
                 Expanded(
@@ -400,23 +571,23 @@ class _ReportScreenState extends State<ReportScreen> {
                       padding: const EdgeInsets.symmetric(
                           vertical: 11, horizontal: 12),
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(7),
-                          bottomLeft: Radius.circular(7),
-                        ),
-                        border: Border.all(
-                            color: Color(0xFFE1E1E1)),
+                          color: Color(0xFF205781),
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(7),
+                            bottomLeft: Radius.circular(7),
+                          ),
+                          border: Border.all(width: 2,
+                              color: Colors.white)
                       ),
-                      child: Row(
+                      child: Row(mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.calendar_today_outlined,
-                              size: 18, color: Color(0xFF205781)),
-                          const SizedBox(width: 7),
+                          Icon(Icons.calendar_month,
+                            size: 18, color: Colors.white,),
+                          SizedBox(width: 7),
                           Text(
                             getDateText(startDate, "START DATE"),
                             style: TextStyle(
-                              color: Color(0xFF205781),
+                              color: Colors.white,
                               fontWeight: FontWeight.w500,
                               fontSize: 15,
                             ),
@@ -433,23 +604,23 @@ class _ReportScreenState extends State<ReportScreen> {
                       padding: const EdgeInsets.symmetric(
                           vertical: 11, horizontal: 12),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: Color(0xFF205781),
                         borderRadius: const BorderRadius.only(
                           topRight: Radius.circular(7),
                           bottomRight: Radius.circular(7),
                         ),
-                        border: Border.all(
-                            color: Color(0xFFE1E1E1)),
+                        border: Border.all(width: 2,
+                            color: Colors.white),
                       ),
-                      child: Row(
+                      child: Row(mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.calendar_today_outlined,
-                              size: 18, color: Color(0xFF205781)),
+                          Icon(Icons.calendar_month,
+                              size: 18, color: Colors.white),
                           const SizedBox(width: 7),
                           Text(
                             getDateText(endDate, "END DATE"),
                             style: TextStyle(
-                              color: Color(0xFF205781),
+                              color: Colors.white,
                               fontWeight: FontWeight.w500,
                               fontSize: 15,
                             ),
@@ -477,9 +648,6 @@ class _ReportScreenState extends State<ReportScreen> {
                 toTitleCase(entry['username'] ?? '');
                 final isCredit = double.tryParse(
                     entry['creditAmount'] ?? "0.00")! >
-                    0;
-                final isDebit = double.tryParse(
-                    entry['debitAmount'] ?? "0.00")! >
                     0;
                 final amount = isCredit
                     ? entry['creditAmount']
@@ -610,7 +778,13 @@ class _ReportScreenState extends State<ReportScreen> {
             const SizedBox(width: 12),
             Expanded(
               child: OutlinedButton.icon(
-                icon: const Icon(
+                icon: isExcelGenerating
+                    ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Color(0xFF388E3C)))
+                    : const Icon(
                   Icons.grid_on_rounded,
                   color: Color(0xFF388E3C),
                   size: 20,
@@ -629,9 +803,7 @@ class _ReportScreenState extends State<ReportScreen> {
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(7)),
                 ),
-                onPressed: () {
-                  // TODO: Implement Excel download
-                },
+                onPressed: isExcelGenerating ? null : downloadExcel,
               ),
             ),
           ],
