@@ -315,7 +315,7 @@ class _SecurityPinScreenState extends State<SecurityPinScreen> {
             keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 12),
-            style: const TextStyle(fontSize: 16, letterSpacing: 7),
+            style: const TextStyle(fontSize: 16, letterSpacing: 0),
             decoration: BoxDecoration(
               color: enabled ? Colors.white : Colors.grey[200],
               border: Border.all(color: kButtonBorder, width: 1.4),
@@ -461,7 +461,7 @@ class _SecurityPinScreenState extends State<SecurityPinScreen> {
                       _pinField(
                         controller: pinController,
                         label: AppStrings.getString("securityNumber"),
-                        placeholder: AppStrings.getString("enterYourNumber"),
+                        placeholder: AppStrings.getString("enterNewSecurityNumber"),
                         enabled: true,
                       ),
                       if (_errorMsg != null)

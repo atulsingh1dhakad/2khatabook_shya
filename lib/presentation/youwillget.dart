@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../LIST_LANG.dart';
 import 'calculatorpanel.dart';
 
 class YouWillGetPage extends StatefulWidget {
@@ -338,7 +339,7 @@ class _YouWillGetPageState extends State<YouWillGetPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          isImage ? "Attached Image" : "Attached File",
+                          isImage ? AppStrings.getString("photoAttachments") : "Attached File",
                           style: const TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: 14,
@@ -472,7 +473,7 @@ class _YouWillGetPageState extends State<YouWillGetPage> {
       appBar: AppBar(
         leading: const BackButton(color: Colors.white,),
         title: Text(
-            widget.ledgerId != null ? 'Edit Entry (You Will Get)' : 'You Will Get From ${widget.accountName}',
+            widget.ledgerId != null ? AppStrings.getString("youWillGetFrom") : AppStrings.getString("youWillGetFrom") ,
             style: const TextStyle(fontSize: 15, color: Colors.white)),
         backgroundColor: const Color(0xFF5D8D4B),
       ),
@@ -555,10 +556,10 @@ class _YouWillGetPageState extends State<YouWillGetPage> {
               TextFormField(
                 controller: _remarkController,
                 focusNode: _remarkFocusNode,
-                decoration: const InputDecoration(
-                  hintText: 'Remark',
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                decoration: InputDecoration(
+                  hintText: AppStrings.getString("remark"),
+                  border: const OutlineInputBorder(),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                 ),
                 onTap: () {
                   setState(() {
@@ -610,7 +611,7 @@ class _YouWillGetPageState extends State<YouWillGetPage> {
                         icon: const Icon(Icons.camera_alt, size: 18, color: Colors.black,),
                         label: Text(
                           _pickedFiles.isEmpty
-                              ? "Attach File"
+                              ? AppStrings.getString("photoAttachments")
                               : "Files: ${_pickedFiles.length}",
                           style: const TextStyle(fontSize: 13, color: Colors.grey),
                           overflow: TextOverflow.ellipsis,
@@ -645,7 +646,7 @@ class _YouWillGetPageState extends State<YouWillGetPage> {
                 onPressed: _isLoading ? null : _saveData,
                 child: _isLoading
                     ? const CircularProgressIndicator(color: Colors.white)
-                    : Text(widget.ledgerId != null ? 'Update' : 'Save', style: const TextStyle(color: Colors.white)),
+                    : Text(widget.ledgerId != null ? AppStrings.getString("update") : AppStrings.getString("save"), style: const TextStyle(color: Colors.white)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF5D8D4B),
                   shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(10))),

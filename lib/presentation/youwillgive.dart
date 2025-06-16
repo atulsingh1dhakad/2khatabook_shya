@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../LIST_LANG.dart';
 import 'calculatorpanel.dart';
 
 class YouWillGivePage extends StatefulWidget {
@@ -275,6 +276,7 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
         SnackBar(content: Text("${result.files.length} file(s) attached")),
       );
     }
+
   }
 
   Widget _buildFilePreview() {
@@ -338,7 +340,7 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          isImage ? "Attached Image" : "Attached File",
+                          isImage ? AppStrings.getString("photoAttachments") : "Attached File",
                           style: const TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: 14,
@@ -472,7 +474,7 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
       appBar: AppBar(
         leading: const BackButton(color: Colors.white,),
         title: Text(
-            widget.ledgerId != null ? 'Edit Entry (You Will Give)' : 'You Will Give To ${widget.accountName}',
+            widget.ledgerId != null ? AppStrings.getString("editEntry") : AppStrings.getString("youWillGiveTo"),
             style: const TextStyle(fontSize: 15, color: Colors.white)),
         backgroundColor: const Color(0xffc96868),
       ),
@@ -555,10 +557,10 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
               TextFormField(
                 controller: _remarkController,
                 focusNode: _remarkFocusNode,
-                decoration: const InputDecoration(
-                  hintText: 'Remark',
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                decoration: InputDecoration(
+                  hintText: AppStrings.getString("remark"),
+                  border: const OutlineInputBorder(),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                 ),
                 onTap: () {
                   setState(() {
@@ -610,7 +612,7 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
                         icon: const Icon(Icons.camera_alt, size: 18, color: Colors.black,),
                         label: Text(
                           _pickedFiles.isEmpty
-                              ? "Attach File"
+                              ? AppStrings.getString("photoAttachments")
                               : "Files: ${_pickedFiles.length}",
                           style: const TextStyle(fontSize: 13, color: Colors.grey),
                           overflow: TextOverflow.ellipsis,
@@ -645,7 +647,7 @@ class _YouWillGivePageState extends State<YouWillGivePage> {
                 onPressed: _isLoading ? null : _saveData,
                 child: _isLoading
                     ? const CircularProgressIndicator(color: Colors.white)
-                    : Text(widget.ledgerId != null ? 'Update' : 'Save', style: const TextStyle(color: Colors.white)),
+                    : Text(widget.ledgerId != null ? AppStrings.getString("update") : AppStrings.getString("save"), style: const TextStyle(color: Colors.white)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xffc96868),
                   shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(10))),

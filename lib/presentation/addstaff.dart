@@ -232,7 +232,7 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
               children: [
                 const Icon(Icons.edit, size: 13),
                 const SizedBox(width: 4),
-                Text(AppStrings.getString("edit"), style: const TextStyle(fontSize: 12)),
+                Text("view-edit", style: const TextStyle(fontSize: 12)),
               ],
             ),
           ),

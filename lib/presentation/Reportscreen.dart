@@ -2,9 +2,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
-import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'dart:io';
+import 'package:flutter_file_downloader/flutter_file_downloader.dart';
 import '../LIST_LANG.dart';
 
 class ReportScreen extends StatefulWidget {
@@ -21,7 +20,6 @@ class _ReportScreenState extends State<ReportScreen> {
   String? errorMessage;
   List<Map<String, dynamic>> ledgerList = [];
   Map<String, dynamic> totals = {};
-  // Date filter
   DateTime? startDate;
   DateTime? endDate;
 
@@ -66,7 +64,7 @@ class _ReportScreenState extends State<ReportScreen> {
           sortedData.sort((a, b) {
             int aDate = int.tryParse(a['ledgerDate']?.toString() ?? "0") ?? 0;
             int bDate = int.tryParse(b['ledgerDate']?.toString() ?? "0") ?? 0;
-            return bDate.compareTo(aDate); // Descending
+            return bDate.compareTo(aDate);
           });
           setState(() {
             ledgerList = sortedData;
@@ -109,7 +107,6 @@ class _ReportScreenState extends State<ReportScreen> {
     return months[(month - 1).clamp(0, 11)];
   }
 
-  // Helper: Capitalize each word
   String toTitleCase(String text) {
     if (text.isEmpty) return text;
     return text
@@ -120,7 +117,6 @@ class _ReportScreenState extends State<ReportScreen> {
         .join(' ');
   }
 
-  // Helper: Format amounts with K,L,Cr
   String formatCompactAmount(num? amount) {
     if (amount == null) return "-";
     if (amount.abs() >= 10000000) {
@@ -134,7 +130,6 @@ class _ReportScreenState extends State<ReportScreen> {
     }
   }
 
-  // Compute running balance for a provided list (filtered)
   List<double?> runningBalancesForList(List<Map<String, dynamic>> list) {
     double sum = 0;
     List<double?> balances = List.filled(list.length, null);
@@ -147,7 +142,6 @@ class _ReportScreenState extends State<ReportScreen> {
     return balances;
   }
 
-  // Date selection helpers
   Future<void> _pickDate({required bool isStart}) async {
     DateTime initialDate = isStart ? (startDate ?? DateTime.now()) : (endDate ?? DateTime.now());
     DateTime firstDate = DateTime(2000);
@@ -182,13 +176,11 @@ class _ReportScreenState extends State<ReportScreen> {
     return "${date.day.toString().padLeft(2, '0')} ${_monthName(date.month)} ${date.year}";
   }
 
-  // ----------- PDF DOWNLOAD LOGIC ----------------
   Future<void> downloadPdf() async {
     setState(() {
       isDownloading = true;
     });
     try {
-      // Ask for storage permission if android
       if (await Permission.storage.request().isDenied) {
         setState(() {
           isDownloading = false;
@@ -211,9 +203,7 @@ class _ReportScreenState extends State<ReportScreen> {
         return;
       }
 
-      // Prepare request body
       String getFormattedDate(DateTime date) {
-        // Format: dd-MM-yyyy hh:mm a
         final h = date.hour % 12 == 0 ? 12 : date.hour % 12;
         final ampm = date.hour < 12 ? "AM" : "PM";
         final min = date.minute.toString().padLeft(2, '0');
@@ -227,7 +217,6 @@ class _ReportScreenState extends State<ReportScreen> {
         companyName = ledgerList[0]['companyName'];
       }
 
-      // Use filtered list according to selected dates for rows
       List<Map<String, dynamic>> displayedLedgerList = ledgerList.where((entry) {
         int millis = int.tryParse(entry['ledgerDate']?.toString() ?? "0") ?? 0;
         if (millis == 0) return false;
@@ -241,7 +230,6 @@ class _ReportScreenState extends State<ReportScreen> {
         return true;
       }).toList();
 
-      // Prepare rows
       List<Map<String, dynamic>> rows = displayedLedgerList.map((entry) {
         int millis = int.tryParse(entry['ledgerDate']?.toString() ?? "0") ?? 0;
         String ledgerDate;
@@ -283,20 +271,47 @@ class _ReportScreenState extends State<ReportScreen> {
       );
 
       if (response.statusCode == 200) {
-        // Save the PDF to disk
-        final bytes = response.bodyBytes;
-        final dir = await getDownloadDirectory();
-        final fileName = "report_${DateTime.now().millisecondsSinceEpoch}.pdf";
-        final file = File('${dir.path}/$fileName');
-        await file.writeAsBytes(bytes);
-
-        setState(() {
-          isDownloading = false;
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("PDF downloaded: ${file.path}")),
-        );
+        try {
+          final Map<String, dynamic> jsonResp = json.decode(response.body);
+          if (jsonResp['downloadUrl'] != null) {
+            String downloadUrl = jsonResp['downloadUrl'];
+            FileDownloader.downloadFile(
+              url: downloadUrl,
+              name: "report_${DateTime.now().millisecondsSinceEpoch}.pdf",
+              onDownloadCompleted: (path) {
+                setState(() {
+                  isDownloading = false;
+                });
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("PDF downloaded: $path")),
+                );
+              },
+              onDownloadError: (String error) {
+                setState(() {
+                  isDownloading = false;
+                });
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("Failed to download PDF: $error")),
+                );
+              },
+              notificationType: NotificationType.all,
+            );
+          } else {
+            setState(() {
+              isDownloading = false;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text("Failed to retrieve PDF download URL.")),
+            );
+          }
+        } catch (e) {
+          setState(() {
+            isDownloading = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Failed to parse PDF download response.")),
+          );
+        }
       } else {
         setState(() {
           isDownloading = false;
@@ -315,19 +330,6 @@ class _ReportScreenState extends State<ReportScreen> {
     }
   }
 
-  Future<Directory> getDownloadDirectory() async {
-    if (Platform.isAndroid) {
-      // For Android, use Download directory
-      final dir = Directory('/storage/emulated/0/Download');
-      if (await dir.exists()) return dir;
-      return await getExternalStorageDirectory() ?? await getApplicationDocumentsDirectory();
-    } else if (Platform.isIOS) {
-      return await getApplicationDocumentsDirectory();
-    } else {
-      return await getTemporaryDirectory();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final giveColor = Colors.red[700]!;
@@ -338,7 +340,6 @@ class _ReportScreenState extends State<ReportScreen> {
     double balance = double.tryParse(totals['totalBalance']?.toString() ?? "0") ?? 0;
     final balanceColor = balance < 0 ? giveColor : getColor;
 
-    // FILTERING LIST BY DATE
     List<Map<String, dynamic>> displayedLedgerList = ledgerList.where((entry) {
       int millis = int.tryParse(entry['ledgerDate']?.toString() ?? "0") ?? 0;
       if (millis == 0) return false;
@@ -352,7 +353,6 @@ class _ReportScreenState extends State<ReportScreen> {
       return true;
     }).toList();
 
-    // Sort again just in case (descending)
     displayedLedgerList.sort((a, b) {
       int aDate = int.tryParse(a['ledgerDate']?.toString() ?? "0") ?? 0;
       int bDate = int.tryParse(b['ledgerDate']?.toString() ?? "0") ?? 0;
@@ -378,7 +378,6 @@ class _ReportScreenState extends State<ReportScreen> {
           ? Center(child: Text(errorMessage!))
           : Column(
         children: [
-          // Top Card
           Padding(
             padding: const EdgeInsets.fromLTRB(10, 14, 10, 6),
             child: _singleTopCard(
@@ -390,7 +389,6 @@ class _ReportScreenState extends State<ReportScreen> {
               balanceColor: balanceColor,
             ),
           ),
-          // Date Range Row (below card)
           Padding(
             padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
             child: Row(
@@ -416,8 +414,7 @@ class _ReportScreenState extends State<ReportScreen> {
                               size: 18, color: Color(0xFF205781)),
                           const SizedBox(width: 7),
                           Text(
-                            getDateText(
-                                startDate, "START DATE"),
+                            getDateText(startDate, "START DATE"),
                             style: TextStyle(
                               color: Color(0xFF205781),
                               fontWeight: FontWeight.w500,
@@ -450,8 +447,7 @@ class _ReportScreenState extends State<ReportScreen> {
                               size: 18, color: Color(0xFF205781)),
                           const SizedBox(width: 7),
                           Text(
-                            getDateText(
-                                endDate, "END DATE"),
+                            getDateText(endDate, "END DATE"),
                             style: TextStyle(
                               color: Color(0xFF205781),
                               fontWeight: FontWeight.w500,
@@ -585,22 +581,25 @@ class _ReportScreenState extends State<ReportScreen> {
               child: OutlinedButton.icon(
                 icon: isDownloading
                     ? const SizedBox(
-                    height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFD32F2F)))
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Color(0xFFD32F2F)))
                     : const Icon(
                   Icons.picture_as_pdf,
-                  color: Color(0xFFD32F2F), // Red shade
+                  color: Color(0xFFD32F2F),
                   size: 20,
                 ),
                 label: Text(
                   "Download PDF",
                   style: const TextStyle(
-                      color: Color(0xFFD32F2F), // Red shade
+                      color: Color(0xFFD32F2F),
                       fontWeight: FontWeight.w600,
                       fontSize: 16,
                       letterSpacing: 0.3),
                 ),
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Color(0xFFD32F2F)), // Red shade
+                  side: const BorderSide(color: Color(0xFFD32F2F)),
                   padding: const EdgeInsets.symmetric(vertical: 13),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(7)),
@@ -613,19 +612,19 @@ class _ReportScreenState extends State<ReportScreen> {
               child: OutlinedButton.icon(
                 icon: const Icon(
                   Icons.grid_on_rounded,
-                  color: Color(0xFF388E3C), // Green shade
+                  color: Color(0xFF388E3C),
                   size: 20,
                 ),
                 label: const Text(
                   "Download Excel",
                   style: TextStyle(
-                      color: Color(0xFF388E3C), // Green shade
+                      color: Color(0xFF388E3C),
                       fontWeight: FontWeight.w600,
                       fontSize: 16,
                       letterSpacing: 0.3),
                 ),
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Color(0xFF388E3C)), // Green shade
+                  side: const BorderSide(color: Color(0xFF388E3C)),
                   padding: const EdgeInsets.symmetric(vertical: 13),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(7)),

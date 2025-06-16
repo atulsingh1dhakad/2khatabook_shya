@@ -150,6 +150,19 @@ class AppStrings {
     "noRecords":"No Records Found",
     "downloadPdf":"Download PDF",
     "downloadxl":"Download Excel",
+    "editStaff": "Edit Staff",
+    "saveChanges":"Save Changes",
+    "searchCompanyByName" : "Search Company by name  ",
+    "staff":"Staff",
+    "addStaff":"Add Staff",
+    "yourSecurityCode":"Your Security Code ",
+    "changeSecurityNumber":"Change Security Number",
+    "enterNewSecurityNumber":"Enter New number",
+    "on":" ON ",
+    "off":" OFF ",
+    "languageUpdatedSuccessfully":"Language Updated Successfully",
+    "editCustomer": "Edit Customer Details",
+    "searchStaff" : "Search Staff",
 
   };
 
@@ -259,6 +272,19 @@ class AppStrings {
     "noRecords":"कोई रिकॉर्ड नहीं मिला",
     "downloadPdf":"पीडीएफ डाउनलोड करें",
     "downloadxl":"एक्सएल डाउनलोड करें",
+    "editStaff": "स्टाफ संपादित करें",
+    "saveChanges":"बदलाव सहेजें ",
+    "searchCompanyByName" : "कंपनी के नाम से खोजें  ",
+    "staff":"स्टाफ ",
+    "addStaff":"स्टाफ जोंडे",
+    "yourSecurityCode":"आपकी सुरक्षा संख्या",
+    "changeSecurityNumber":"सुरक्षा संख्या बदलें",
+    "enterNewSecurityNumber":"नई संख्या डालें ",
+    "on":"चालू है ",
+    "off":"बंद है ",
+    "languageUpdatedSuccessfully":"भाषा सफलतापूर्वक अपडेट की गई",
+    "editCustomer": "कस्टमर की जानकारी संपादित करें",
+    "searchStaff" : "स्टाफ दूँडे ",
 
 
   };

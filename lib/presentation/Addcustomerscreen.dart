@@ -453,7 +453,7 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
             label: Text(
               isEdit
                   ? AppStrings.getString("updateCustomer")
-                  : AppStrings.getString("createCustomer"),
+                  : AppStrings.getString("addCustomer"),
               style: const TextStyle(color: Colors.white),
             ),
             style: ElevatedButton.styleFrom(
