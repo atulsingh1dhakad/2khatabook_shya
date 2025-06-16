@@ -163,6 +163,9 @@ class AppStrings {
     "languageUpdatedSuccessfully":"Language Updated Successfully",
     "editCustomer": "Edit Customer Details",
     "searchStaff" : "Search Staff",
+    "pdfDownlaoded":"PDF downloaded Successfully",
+    "customerUpdatedSuccessfully" :" Customer updated successfully "
+
 
   };
 
@@ -285,6 +288,8 @@ class AppStrings {
     "languageUpdatedSuccessfully":"भाषा सफलतापूर्वक अपडेट की गई",
     "editCustomer": "कस्टमर की जानकारी संपादित करें",
     "searchStaff" : "स्टाफ दूँडे ",
+    "pdfDownlaoded":"pdf सफलता पूर्वक डाउनलोड हो चुकी है  ",
+  "customerUpdatedSuccessfully" :" ग्राहक अपडेट हो गया  "
 
 
   };
