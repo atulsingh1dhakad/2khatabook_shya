@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+
 import '../LIST_LANG.dart';
 import '../presentation/loginscreen.dart';
 
@@ -51,40 +53,52 @@ class _BackupScreenState extends State<BackupScreen> {
       isLoading = true;
     });
 
-    // Dummy backend call example
-    final url = Uri.parse("https://example.com/api/toggle-backup");
-    try {
-      final response = await http.post(
-        url,
-        body: {'enabled': value.toString()},
-      );
+    // Dummy backend call example (not implemented)
+    await Future.delayed(const Duration(seconds: 1));
+    setState(() {
+      isLoading = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          value
+              ? AppStrings.getString("turnOnBackup") + "!"
+              : AppStrings.getString("turnOnBackup") +
+              " " +
+              AppStrings.getString("cancel") +
+              "!",
+        ),
+      ),
+    );
+  }
 
-      if (response.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              value
-                  ? AppStrings.getString("turnOnBackup") + "!"
-                  : AppStrings.getString("turnOnBackup") + " " + AppStrings.getString("cancel") + "!",
+  Future<void> confirmAndDeleteBackup() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(AppStrings.getString("confirmDeleteBackup")),
+        content: Text(
+          AppStrings.getString("deleteBackupWarning") +
+              "\n\n" +
+              AppStrings.getString("areYouSure"),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(AppStrings.getString("cancel")),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(
+              AppStrings.getString("delete"),
+              style: const TextStyle(color: Colors.red),
             ),
           ),
-        );
-      } else {
-        throw Exception(AppStrings.getString("failedToUpdateBackupStatus"));
-      }
-    } catch (e) {
-      setState(() {
-        isBackupEnabled = !value; // revert
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("${AppStrings.getString("failedToUpdateBackupStatus")}: $e"),
-        ),
-      );
-    } finally {
-      setState(() {
-        isLoading = false;
-      });
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await deleteBackup();
     }
   }
 
@@ -100,7 +114,9 @@ class _BackupScreenState extends State<BackupScreen> {
     if (userId == null || userId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(AppStrings.getString("userId") + " " + AppStrings.getString("notFound")),
+          content: Text(AppStrings.getString("userId") +
+              " " +
+              AppStrings.getString("notFound")),
         ),
       );
       setState(() {
@@ -109,9 +125,9 @@ class _BackupScreenState extends State<BackupScreen> {
       return;
     }
 
-    final url = Uri.parse("http://account.galaxyex.xyz/v1/user/api//user/backup-and-delete/$userId");
+    final url = Uri.parse("http://account.galaxyex.xyz/v1/user/api/user/backup-and-delete/$userId");
     try {
-      final response = await http.delete(
+      final response = await http.get(
         url,
         headers: {
           "Authkey": authToken,
@@ -120,28 +136,41 @@ class _BackupScreenState extends State<BackupScreen> {
       );
 
       if (response.statusCode == 200) {
-        // Clear all tokens and user info
-        await prefs.remove("auth_token");
-        await prefs.remove("userId");
-        await prefs.remove("userType");
-        await prefs.remove("userName");
-        await prefs.remove("security_enabled");
-        await prefs.remove("app_language");
-        // ... add more if you store more sensitive data
+        final data = jsonDecode(response.body);
 
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppStrings.getString("backupAndDeleteAccount") + " " + AppStrings.getString("delete")),
-          ),
-        );
-        // Go to login screen
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const EmailLoginScreen()),
-              (route) => false,
-        );
+        if (data["meta"]?["status"] == true) {
+          // Clear all tokens and user info
+          await prefs.remove("auth_token");
+          await prefs.remove("userId");
+          await prefs.remove("userType");
+          await prefs.remove("userName");
+          await prefs.remove("security_enabled");
+          await prefs.remove("app_language");
+          // ... add more if you store more sensitive data
+
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                AppStrings.getString("backupAndDeleteAccount") +
+                    " " +
+                    AppStrings.getString("delete"),
+              ),
+            ),
+          );
+          // Go to login screen
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const EmailLoginScreen()),
+                (route) => false,
+          );
+        } else {
+          final msg = data["meta"]?["msg"] ?? AppStrings.getString("delete") + " " + AppStrings.getString("failed");
+          throw Exception(msg);
+        }
       } else {
-        throw Exception(AppStrings.getString("delete") + " " + AppStrings.getString("failed"));
+        throw Exception(AppStrings.getString("delete") +
+            " " +
+            AppStrings.getString("failed"));
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -160,9 +189,12 @@ class _BackupScreenState extends State<BackupScreen> {
   Widget build(BuildContext context) {
     AppStrings.setLanguage(_selectedLang);
 
-    Color toggleBgColor = isBackupEnabled ? Colors.green : Color(0xff87CEEB).withOpacity(0.5);
+    Color toggleBgColor =
+    isBackupEnabled ? Colors.green : const Color(0xff87CEEB).withOpacity(0.5);
     String toggleText = isBackupEnabled
-        ? AppStrings.getString("turnOnBackup") + " " + AppStrings.getString("cancel")
+        ? AppStrings.getString("turnOnBackup") +
+        " " +
+        AppStrings.getString("cancel")
         : AppStrings.getString("turnOnBackup");
     Color toggleTextColor = Colors.white;
 
@@ -175,7 +207,8 @@ class _BackupScreenState extends State<BackupScreen> {
           elevation: 0,
           title: Text(
             AppStrings.getString("backupAndDelete"),
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+            style: const TextStyle(
+                color: Colors.white, fontWeight: FontWeight.w500),
           ),
           centerTitle: true,
           shape: const RoundedRectangleBorder(
@@ -193,10 +226,12 @@ class _BackupScreenState extends State<BackupScreen> {
                 Center(
                   child: CircleAvatar(
                     radius: 150,
-                    backgroundColor: const Color(0xff2286F7).withOpacity(0.13),
+                    backgroundColor:
+                    const Color(0xff2286F7).withOpacity(0.13),
                     child: CircleAvatar(
                       radius: 130,
-                      backgroundColor: const Color(0xff2286F7).withOpacity(0.08),
+                      backgroundColor:
+                      const Color(0xff2286F7).withOpacity(0.08),
                       child: Center(
                         child: Image.asset(
                           'assets/images/backup.png',
@@ -216,7 +251,8 @@ class _BackupScreenState extends State<BackupScreen> {
                       top: Radius.circular(32),
                     ),
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+                  padding:
+                  const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
@@ -266,7 +302,8 @@ class _BackupScreenState extends State<BackupScreen> {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 18),
                                   child: Text(
                                     toggleText,
                                     style: TextStyle(
@@ -306,7 +343,8 @@ class _BackupScreenState extends State<BackupScreen> {
                               borderRadius: BorderRadius.circular(24),
                             ),
                           ),
-                          onPressed: isLoading ? null : deleteBackup,
+                          onPressed:
+                          isLoading ? null : confirmAndDeleteBackup,
                           child: Text(
                             AppStrings.getString("backupAndDeleteAccount"),
                             style: const TextStyle(
