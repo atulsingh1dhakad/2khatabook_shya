@@ -124,7 +124,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
         _userType = userType ?? '';
         _userId = userId ?? '';
       });
-      // Don't call access here, call only once we have selectedCompanyId
     } catch (e) {
       setState(() {
         _userType = '';
@@ -136,7 +135,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
     }
   }
 
-  /// Fetches permission for the current company from backend.
   Future<void> _fetchUserAccess(String userId, String companyId) async {
     if (userId.isEmpty || companyId.isEmpty) {
       setState(() {
@@ -161,9 +159,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
       String permission = '';
       if (response.statusCode == 200) {
         final Map<String, dynamic> jsonData = json.decode(response.body);
-        // FIX: Use jsonData['data']['compnayDetails'] because it's nested!
         final List compDetails = (jsonData['data']['compnayDetails'] ?? []);
-        // Check access for the selected company
         final access = compDetails.firstWhere(
               (c) => c['companyId'].toString() == companyId,
           orElse: () => null,
@@ -433,137 +429,133 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxHeight: MediaQuery.of(context).size.height * 0.3,
-                    ),
-                    child: SingleChildScrollView(
-                      child: Column(
-                        children: [
-                          ...companies.asMap().entries.map((entry) {
-                            final index = entry.key;
-                            final company = entry.value;
-                            final bool isSelected =
-                                selectedCompanyId == company['companyId'];
-                            return GestureDetector(
-                              onTap: () => onCompanyChanged(
-                                company['companyId'],
-                                company['companyName'],
-                              ),
-                              child: Container(
-                                margin: const EdgeInsets.only(bottom: 8),
-                                padding: const EdgeInsets.symmetric(
-                                    vertical: 6, horizontal: 5),
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? const Color(0xFF205781)
-                                      : Colors.white,
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
+                  if (companies.isNotEmpty)
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight: MediaQuery.of(context).size.height * 0.3,
+                      ),
+                      child: SingleChildScrollView(
+                        child: Column(
+                          children: [
+                            ...companies.asMap().entries.map((entry) {
+                              final index = entry.key;
+                              final company = entry.value;
+                              final bool isSelected =
+                                  selectedCompanyId == company['companyId'];
+                              return GestureDetector(
+                                onTap: () => onCompanyChanged(
+                                  company['companyId'],
+                                  company['companyName'],
+                                ),
+                                child: Container(
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 6, horizontal: 5),
+                                  decoration: BoxDecoration(
                                     color: isSelected
                                         ? const Color(0xFF205781)
-                                        : Colors.grey.shade300,
-                                    width: 1,
+                                        : Colors.white,
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? const Color(0xFF205781)
+                                          : Colors.grey.shade300,
+                                      width: 1,
+                                    ),
                                   ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    CircleAvatar(
-                                      radius: 16,
-                                      backgroundColor: const Color(0xFF205781),
-                                      child: Text(
-                                        getInitials(
-                                          AppStrings.getString(company['companyName']),
-                                          index,
-                                        ),
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: kFontMedium,
-                                          letterSpacing: 1.2,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
+                                  child: Row(
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 16,
+                                        backgroundColor: const Color(0xFF205781),
+                                        child: Text(
+                                          getInitials(
                                             AppStrings.getString(company['companyName']),
-                                            style: TextStyle(
-                                              color: isSelected
-                                                  ? Colors.white
-                                                  : const Color(0xFF205781),
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: kFontLarge,
-                                            ),
+                                            index,
                                           ),
-                                          const SizedBox(height: 1),
-                                        ],
-                                      ),
-                                    ),
-                                    Container(
-                                      height: 30,
-                                      width: 30,
-                                      decoration: BoxDecoration(
-                                        borderRadius: const BorderRadius.all(Radius.circular(50)),
-                                        color: isSelected ? Colors.white : const Color(0xFF205781),
-                                        border: Border.all(
-                                          color: isSelected ? Colors.grey.shade300 : Colors.transparent,
-                                          width: 1,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: kFontMedium,
+                                            letterSpacing: 1.2,
+                                          ),
                                         ),
                                       ),
-                                      child: GestureDetector(
-                                        onTap: () async {
-                                          if (!_accessLoaded) return;
-                                          if (_isViewOnly) {
-                                            _showNoPermissionDialog();
-                                            return;
-                                          }
-                                          Navigator.pop(context);
-                                          await Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (context) => AddCompanyPage(
-                                                companyId: company['companyId'],
-                                                initialName: company['companyName'],
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              AppStrings.getString(company['companyName']),
+                                              style: TextStyle(
+                                                color: isSelected
+                                                    ? Colors.white
+                                                    : const Color(0xFF205781),
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: kFontLarge,
                                               ),
                                             ),
-                                          );
-                                          fetchCompanies();
-                                        },
-                                        child: Icon(
-                                          Icons.edit,
-                                          color: isSelected ? const Color(0xFF205781) : Colors.white,
-                                          size: 20,
+                                            const SizedBox(height: 1),
+                                          ],
                                         ),
                                       ),
-                                    )
-                                  ],
+                                      Container(
+                                        height: 30,
+                                        width: 30,
+                                        decoration: BoxDecoration(
+                                          borderRadius: const BorderRadius.all(Radius.circular(50)),
+                                          color: isSelected ? Colors.white : const Color(0xFF205781),
+                                          border: Border.all(
+                                            color: isSelected ? Colors.grey.shade300 : Colors.transparent,
+                                            width: 1,
+                                          ),
+                                        ),
+                                        child: GestureDetector(
+                                          onTap: () async {
+                                            if (!_accessLoaded) return;
+                                            if (_isViewOnly) {
+                                              _showNoPermissionDialog();
+                                              return;
+                                            }
+                                            Navigator.pop(context);
+                                            await Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) => AddCompanyPage(
+                                                  companyId: company['companyId'],
+                                                  initialName: company['companyName'],
+                                                ),
+                                              ),
+                                            );
+                                            fetchCompanies();
+                                          },
+                                          child: Icon(
+                                            Icons.edit,
+                                            color: isSelected ? const Color(0xFF205781) : Colors.white,
+                                            size: 20,
+                                          ),
+                                        ),
+                                      )
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            );
-                          }),
-                        ],
+                              );
+                            }),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
                   const SizedBox(height: 8),
                   ElevatedButton.icon(
-                    onPressed: () {
-                      if (!_accessLoaded) return;
-                      if (_isViewOnly) {
-                        Navigator.pop(context);
-                        _showNoPermissionDialog();
-                        return;
-                      }
+                    onPressed: () async {
                       Navigator.pop(context);
-                      Navigator.push(
+                      final result = await Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => AddCompanyPage()),
                       );
+                      if (result == true) fetchCompanies();
                     },
                     icon: const Icon(Icons.add, size: 20, color: Colors.white),
                     label: Padding(
@@ -972,6 +964,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
                               MaterialPageRoute(
                                 builder: (context) => ReportScreen(
                                   companyId: selectedCompanyId,
+                                  companyName: selectedCompanyName,
                                 ),
                               ),
                             );
@@ -1057,9 +1050,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
                   Icon(Icons.person_outline, size: 70, color: Colors.grey.withOpacity(0.7)),
                   const SizedBox(height: 12),
                   Text(
-                    AppStrings.getString("noCustomerAvailable"),
+                    AppStrings.getString(companies.isEmpty ? "noCompanyAvailable" : "noCustomerAvailable"),
                     style: TextStyle(fontSize: kFontLarge, color: Colors.grey[700]),
                   ),
+
                 ],
               ),
             )

@@ -62,13 +62,12 @@ class _CustomerDetailsState extends State<CustomerDetails>
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? userId = prefs.getString("userId");
       String? userType = prefs.getString("userType");
-      print("DEBUG: prefs[userId]=$userId, prefs[userType]=$userType");
       setState(() {
         _userType = userType ?? '';
         _userId = userId ?? '';
       });
       if ((_userId).isEmpty || (_userType).isEmpty) {
-        print('ERROR: userId or userType is empty! Check login logic and shared preferences.');
+        // Handle missing user info
       }
       if (_userId.isNotEmpty) {
         await _fetchUserAccess(_userId, widget.companyId);
@@ -94,7 +93,6 @@ class _CustomerDetailsState extends State<CustomerDetails>
     try {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       final authKey = prefs.getString("auth_token");
-      print("DEBUG: Fetching company access for userId=$userId, companyId=$companyId");
       final url = "http://account.galaxyex.xyz/v1/user/api//account/get-access/$userId";
       final response = await http.get(
         Uri.parse(url),
@@ -107,12 +105,7 @@ class _CustomerDetailsState extends State<CustomerDetails>
       String permission = '';
       if (response.statusCode == 200) {
         final Map<String, dynamic> jsonData = json.decode(response.body);
-        print("DEBUG: get-access response: $jsonData");
-        // FIX: Use jsonData['data']['compnayDetails'] because it's nested!
         final List compDetails = (jsonData['data']['compnayDetails'] ?? []);
-        for (final c in compDetails) {
-          print("DEBUG: companyId in response: ${c['companyId']} (looking for $companyId)");
-        }
         final access = compDetails.firstWhere(
               (c) => c['companyId'].toString() == companyId,
           orElse: () => null,
@@ -129,7 +122,6 @@ class _CustomerDetailsState extends State<CustomerDetails>
         _isViewOnly = viewOnly;
         _companyPermission = permission;
       });
-      print("PERMISSION FROM BACKEND FOR COMPANY $companyId: $_companyPermission");
     } catch (e) {
       setState(() {
         _accessLoaded = true;
@@ -273,12 +265,12 @@ class _CustomerDetailsState extends State<CustomerDetails>
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("Permission Denied"),
-        content: const Text("You don't have permission for this action."),
+        title: Text(AppStrings.getString("permissionDenied")),
+        content: Text(AppStrings.getString("noPermissionForThisAction")),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text("OK"),
+            child: Text(AppStrings.getString("close")),
           ),
         ],
       ),
@@ -538,11 +530,11 @@ class _CustomerDetailsState extends State<CustomerDetails>
     double displayAmount;
 
     if (balance < 0) {
-      label = AppStrings.getString(AppStrings.youWillGive);
+      label = AppStrings.getString("youWillGive");
       amountTextColor = Colors.red;
       displayAmount = -balance;
     } else if (balance > 0) {
-      label = AppStrings.getString(AppStrings.youWillGet);
+      label = AppStrings.getString("youWillGet");
       amountTextColor = const Color(0xFF198754);
       displayAmount = balance;
     } else {
@@ -558,13 +550,6 @@ class _CustomerDetailsState extends State<CustomerDetails>
     if (_userType.trim().toUpperCase() == "STAFF") {
       disableButtons = !_accessLoaded || _isViewOnly;
     }
-
-    print(
-        "DEBUG: accessLoaded=$_accessLoaded, "
-            "isViewOnly=$_isViewOnly, "
-            "userType=$_userType, "
-            "companyPermission=$_companyPermission"
-    );
 
     return WillPopScope(
       onWillPop: _onWillPop,
@@ -726,7 +711,7 @@ class _CustomerDetailsState extends State<CustomerDetails>
                           width: 70,
                           alignment: Alignment.centerLeft,
                           child: Text(
-                            AppStrings.getString(AppStrings.youGive),
+                            AppStrings.getString("youGive"),
                             style: TextStyle(
                               fontSize: kFontVerySmall,
                               color: const Color(0xffc96868),
@@ -738,7 +723,7 @@ class _CustomerDetailsState extends State<CustomerDetails>
                           width: 60,
                           alignment: Alignment.centerRight,
                           child: Text(
-                            AppStrings.getString(AppStrings.youGet),
+                            AppStrings.getString("youGet"),
                             style: TextStyle(
                               fontSize: kFontVerySmall,
                               color: const Color(0xFF198754),
@@ -823,7 +808,7 @@ class _CustomerDetailsState extends State<CustomerDetails>
                           ),
                         ),
                         child: Text(
-                          AppStrings.getString(AppStrings.youGive),
+                          AppStrings.getString("youGive"),
                           style: const TextStyle(
                               fontSize: kFontLarge,
                               color: Colors.white),
@@ -860,7 +845,7 @@ class _CustomerDetailsState extends State<CustomerDetails>
                           ),
                         ),
                         child: Text(
-                          AppStrings.getString(AppStrings.youGet),
+                          AppStrings.getString("youGet"),
                           style: const TextStyle(
                               fontSize: kFontLarge,
                               color: Colors.white),
