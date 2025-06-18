@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../LIST_LANG.dart';
 
-// UI constants based on the image
+// UI constants
 const double kFontSmall = 12.0;
 const double kFontMedium = 15.0;
 const double kFontLarge = 17.0;
@@ -171,9 +171,33 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
   }
 
   Future<void> deleteLedger(String ledgerId) async {
-    _showSnackBar(AppStrings.getString("permanentDeleteNotImplemented"));
-    // After deletion, refresh the bin:
-    // await fetchRecycleLedger();
+    final authKey = await getAuthToken();
+    if (authKey == null) {
+      _showSnackBar(AppStrings.getString("authErrorRelogin"));
+      return;
+    }
+    try {
+      final response = await http.get(
+        Uri.parse("http://account.galaxyex.xyz/v1/user/api/setting/delet-recycle/$ledgerId"),
+        headers: {
+          "Authkey": authKey,
+          "Content-Type": "application/json",
+        },
+      );
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data["meta"]?["status"] == true) {
+          _showSnackBar(data["meta"]?["msg"] ?? AppStrings.getString("delete"));
+          await fetchRecycleLedger();
+        } else {
+          _showSnackBar(data["meta"]?["msg"] ?? AppStrings.getString("failedToDeleteBackup"));
+        }
+      } else {
+        _showSnackBar("${AppStrings.getString("serverError")}: ${response.statusCode}");
+      }
+    } catch (e) {
+      _showSnackBar("${AppStrings.getString("error")}: $e");
+    }
   }
 
   Future<void> deleteAllLedgers() async {
@@ -208,17 +232,25 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
       return;
     }
     try {
-      // Assuming a bulk delete API exists; if not, delete one by one
-      // Here, we just delete each ledger one by one for demonstration
-      for (final entry in recycleLedger) {
-        final ledgerId = entry['ledgerId']?.toString() ?? entry['_id']?.toString() ?? "";
-        if (ledgerId.isNotEmpty) {
-          // Implement actual delete call here when API is available
+      // Use the dedicated API for deleting all recycle entries
+      final response = await http.get(
+        Uri.parse("http://account.galaxyex.xyz/v1/user/api/setting/delet-all-recycle"),
+        headers: {
+          "Authkey": authKey,
+          "Content-Type": "application/json",
+        },
+      );
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data["meta"]?["status"] == true) {
+          _showSnackBar(data["meta"]?["msg"] ?? AppStrings.getString("deleteAllPermanently"));
+          await fetchRecycleLedger();
+        } else {
+          _showSnackBar(data["meta"]?["msg"] ?? AppStrings.getString("failedToDeleteBackup"));
         }
+      } else {
+        _showSnackBar("${AppStrings.getString("serverError")}: ${response.statusCode}");
       }
-      _showSnackBar(AppStrings.getString("permanentDeleteNotImplemented"));
-      // After deletion, refresh the bin:
-      // await fetchRecycleLedger();
     } catch (e) {
       _showSnackBar("${AppStrings.getString("error")}: $e");
     }
@@ -252,7 +284,6 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
         : AppStrings.getString("customerDeleted").replaceFirst("{time}", ago);
   }
 
-  // Returns a leading icon based on type
   Widget _buildLeading(Map<String, dynamic> entry) {
     return CircleAvatar(
       radius: 22,
@@ -261,7 +292,6 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
     );
   }
 
-  // Format ₹ 432,750 style
   String formatAmount(num amt) {
     String s = amt.abs().toStringAsFixed(0);
     if (s.length <= 3) return amt >= 0 ? "₹ $s" : "-₹ $s";
@@ -279,7 +309,6 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
     final credit = double.tryParse(entry['creditAmount']?.toString() ?? "0") ?? 0;
     final debit = double.tryParse(entry['debitAmount']?.toString() ?? "0") ?? 0;
     final amount = credit > 0 ? credit : -debit;
-    final isCredit = credit > 0;
     final name = entry['customerName'] ?? entry['name'] ?? AppStrings.getString("customerName");
     final ledgerId = entry['ledgerId']?.toString() ?? entry['_id']?.toString() ?? "";
     final deletedTime = entry['deleteDate'] ?? entry['deletedAt'] ?? entry['ledgerDate'] ?? DateTime.now().millisecondsSinceEpoch;
@@ -448,7 +477,6 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Ensure language is set for every build
     AppStrings.setLanguage(_selectedLang);
 
     return Scaffold(

@@ -4,15 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:permission_handler/permission_handler.dart';
-import 'package:flutter_file_downloader/flutter_file_downloader.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
-import 'package:excel/excel.dart' hide Border;
 import '../LIST_LANG.dart';
 
 class ReportScreen extends StatefulWidget {
   final String? companyId;
-  const ReportScreen({Key? key, this.companyId}) : super(key: key);
+  final String? companyName; // <-- Accept companyName from navigation
+  const ReportScreen({Key? key, this.companyId, this.companyName}) : super(key: key);
 
   @override
   State<ReportScreen> createState() => _ReportScreenState();
@@ -205,6 +204,119 @@ class _ReportScreenState extends State<ReportScreen> {
     return "${date.day.toString().padLeft(2, '0')} ${_monthName(date.month)} ${date.year}";
   }
 
+  Future<void> downloadExcel() async {
+    setState(() {
+      isExcelGenerating = true;
+    });
+    try {
+      if (!await requestStoragePermission()) {
+        setState(() {
+          isExcelGenerating = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Storage permission denied.")),
+        );
+        return;
+      }
+
+      String getFormattedDate(DateTime date) {
+        final h = date.hour % 12 == 0 ? 12 : date.hour % 12;
+        final ampm = date.hour < 12 ? "AM" : "PM";
+        final min = date.minute.toString().padLeft(2, '0');
+        return "${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year} ${h.toString().padLeft(2, '0')}:$min $ampm";
+      }
+
+      String nowString = getFormattedDate(DateTime.now());
+      String exportCompanyName = widget.companyName ?? "Unknown"; // <--- Always use passed companyName
+
+      List<Map<String, dynamic>> displayedLedgerList = ledgerList.where((entry) {
+        int millis = int.tryParse(entry['ledgerDate']?.toString() ?? "0") ?? 0;
+        if (millis == 0) return false;
+        DateTime entryDate = DateTime.fromMillisecondsSinceEpoch(millis);
+        if (startDate != null && entryDate.isBefore(DateTime(startDate!.year, startDate!.month, startDate!.day))) {
+          return false;
+        }
+        if (endDate != null && entryDate.isAfter(DateTime(endDate!.year, endDate!.month, endDate!.day, 23, 59, 59, 999))) {
+          return false;
+        }
+        return true;
+      }).toList();
+
+      displayedLedgerList.sort((a, b) {
+        int aDate = int.tryParse(a['ledgerDate']?.toString() ?? "0") ?? 0;
+        int bDate = int.tryParse(b['ledgerDate']?.toString() ?? "0") ?? 0;
+        return bDate.compareTo(aDate);
+      });
+
+      List<Map<String, dynamic>> rows = displayedLedgerList.map((entry) {
+        int millis = int.tryParse(entry['ledgerDate']?.toString() ?? "0") ?? 0;
+        String ledgerDate;
+        if (millis != 0) {
+          final d = DateTime.fromMillisecondsSinceEpoch(millis);
+          final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
+          final ampm = d.hour < 12 ? "AM" : "PM";
+          final min = d.minute.toString().padLeft(2, '0');
+          ledgerDate = "${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year} ${h.toString().padLeft(2, '0')}:$min $ampm";
+        } else {
+          ledgerDate = "-";
+        }
+        return {
+          "username": entry['username'] ?? "",
+          "debitAmount": entry['debitAmount']?.toString() ?? "0.00",
+          "creditAmount": entry['creditAmount']?.toString() ?? "0.00",
+          "balance": entry['balance']?.toString() ?? "",
+          "ledgerDate": ledgerDate
+        };
+      }).toList();
+
+      final Map<String, String> queryParams = {
+        "companyName": exportCompanyName,
+        "updateAt": nowString,
+        "totelCredit": totals['totalCreditAmount']?.toString() ?? "0.00",
+        "totelDebit": totals['totalDebitAmount']?.toString() ?? "0.00",
+        "totelBalance": totals['totalBalance']?.toString() ?? "0.00",
+        "row": jsonEncode(rows),
+      };
+
+      final uri = Uri.http(
+        "account.galaxyex.xyz",
+        "/v1/user/api/account/generate-excel",
+        queryParams,
+      );
+
+      final response = await http.get(uri);
+
+      if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
+        final directory = await getApplicationDocumentsDirectory();
+        final filePath = "${directory.path}/report_${DateTime.now().millisecondsSinceEpoch}.xlsx";
+        final file = File(filePath);
+        await file.writeAsBytes(response.bodyBytes);
+
+        setState(() {
+          isExcelGenerating = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Excel downloaded: $filePath")),
+        );
+        await OpenFile.open(filePath);
+      } else {
+        setState(() {
+          isExcelGenerating = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Failed to download Excel: ${response.statusCode}")),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        isExcelGenerating = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error downloading Excel: $e")),
+      );
+    }
+  }
+
   Future<void> downloadPdf() async {
     setState(() {
       isDownloading = true;
@@ -228,11 +340,7 @@ class _ReportScreenState extends State<ReportScreen> {
       }
 
       String nowString = getFormattedDate(DateTime.now());
-
-      String companyName = "Company Name";
-      if (ledgerList.isNotEmpty && ledgerList[0]['companyName'] != null) {
-        companyName = ledgerList[0]['companyName'];
-      }
+      String exportCompanyName = widget.companyName ?? "Unknown"; // <--- Always use passed companyName
 
       List<Map<String, dynamic>> displayedLedgerList = ledgerList.where((entry) {
         int millis = int.tryParse(entry['ledgerDate']?.toString() ?? "0") ?? 0;
@@ -269,7 +377,7 @@ class _ReportScreenState extends State<ReportScreen> {
       }).toList();
 
       final Map<String, String> queryParams = {
-        "companyName": companyName,
+        "companyName": exportCompanyName,
         "updateAt": nowString,
         "totelCredit": totals['totalCreditAmount']?.toString() ?? "0.00",
         "totelDebit": totals['totalDebitAmount']?.toString() ?? "0.00",
@@ -307,27 +415,28 @@ class _ReportScreenState extends State<ReportScreen> {
             final Map<String, dynamic> jsonResp = json.decode(response.body);
             if (jsonResp['downloadUrl'] != null) {
               String downloadUrl = jsonResp['downloadUrl'];
-              FileDownloader.downloadFile(
-                url: downloadUrl,
-                name: "report_${DateTime.now().millisecondsSinceEpoch}.pdf",
-                onDownloadCompleted: (path) {
-                  setState(() {
-                    isDownloading = false;
-                  });
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("PDF downloaded: $path")),
-                  );
-                },
-                onDownloadError: (String error) {
-                  setState(() {
-                    isDownloading = false;
-                  });
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("Failed to download PDF: $error")),
-                  );
-                },
-                notificationType: NotificationType.all,
-              );
+              final downloadResponse = await http.get(Uri.parse(downloadUrl));
+              if (downloadResponse.statusCode == 200 && downloadResponse.bodyBytes.isNotEmpty) {
+                final directory = await getApplicationDocumentsDirectory();
+                final filePath = "${directory.path}/report_${DateTime.now().millisecondsSinceEpoch}.pdf";
+                final file = File(filePath);
+                await file.writeAsBytes(downloadResponse.bodyBytes);
+
+                setState(() {
+                  isDownloading = false;
+                });
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("PDF downloaded: $filePath")),
+                );
+                await OpenFile.open(filePath);
+              } else {
+                setState(() {
+                  isDownloading = false;
+                });
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("Failed to download PDF: ${downloadResponse.statusCode}")),
+                );
+              }
             } else {
               setState(() {
                 isDownloading = false;
@@ -359,144 +468,6 @@ class _ReportScreenState extends State<ReportScreen> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Error: $e")),
-      );
-    }
-  }
-
-  Future<void> downloadExcel() async {
-    setState(() {
-      isExcelGenerating = true;
-    });
-    try {
-      if (!await requestStoragePermission()) {
-        setState(() {
-          isExcelGenerating = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Storage permission denied.")),
-        );
-        return;
-      }
-
-      String getFormattedDate(DateTime date) {
-        final h = date.hour % 12 == 0 ? 12 : date.hour % 12;
-        final ampm = date.hour < 12 ? "AM" : "PM";
-        final min = date.minute.toString().padLeft(2, '0');
-        return "${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year} ${h.toString().padLeft(2, '0')}:$min $ampm";
-      }
-
-      String nowString = getFormattedDate(DateTime.now());
-      String companyName = "Company Name";
-      if (ledgerList.isNotEmpty && ledgerList[0]['companyName'] != null) {
-        companyName = ledgerList[0]['companyName'];
-      }
-
-      List<Map<String, dynamic>> displayedLedgerList = ledgerList.where((entry) {
-        int millis = int.tryParse(entry['ledgerDate']?.toString() ?? "0") ?? 0;
-        if (millis == 0) return false;
-        DateTime entryDate = DateTime.fromMillisecondsSinceEpoch(millis);
-        if (startDate != null && entryDate.isBefore(DateTime(startDate!.year, startDate!.month, startDate!.day))) {
-          return false;
-        }
-        if (endDate != null && entryDate.isAfter(DateTime(endDate!.year, endDate!.month, endDate!.day, 23, 59, 59, 999))) {
-          return false;
-        }
-        return true;
-      }).toList();
-
-      displayedLedgerList.sort((a, b) {
-        int aDate = int.tryParse(a['ledgerDate']?.toString() ?? "0") ?? 0;
-        int bDate = int.tryParse(b['ledgerDate']?.toString() ?? "0") ?? 0;
-        return bDate.compareTo(aDate);
-      });
-
-      String totalDebit = totals['totalDebitAmount']?.toString() ?? "0.00";
-      String totalCredit = totals['totalCreditAmount']?.toString() ?? "0.00";
-      String totalBalance = totals['totalBalance']?.toString() ?? "0.00";
-
-      final excel = Excel.createExcel();
-      Sheet? sheet = excel['Sheet1'];
-      sheet ??= excel[excel.getDefaultSheet() ?? 'Sheet1'];
-
-      // Header info
-      sheet.appendRow([
-        TextCellValue("Company Name"), TextCellValue(companyName)
-      ]);
-      sheet.appendRow([
-        TextCellValue("Last Updated"), TextCellValue(nowString)
-      ]);
-      sheet.appendRow([TextCellValue("")]);
-
-      // Summary row
-      sheet.appendRow([
-        TextCellValue("Total Credit"),
-        TextCellValue("Total Debit"),
-        TextCellValue("Total Balance"),
-      ]);
-      sheet.appendRow([
-        TextCellValue(totalCredit),
-        TextCellValue(totalDebit),
-        TextCellValue(totalBalance),
-      ]);
-      sheet.appendRow([TextCellValue("")]);
-
-      // Table header
-      sheet.appendRow([
-        TextCellValue("Username"),
-        TextCellValue("Debit Amount"),
-        TextCellValue("Credit Amount"),
-        TextCellValue("Balance"),
-        TextCellValue("Ledger Date"),
-      ]);
-
-      for (final entry in displayedLedgerList) {
-        int millis = int.tryParse(entry['ledgerDate']?.toString() ?? "0") ?? 0;
-        String ledgerDate;
-        if (millis != 0) {
-          final d = DateTime.fromMillisecondsSinceEpoch(millis);
-          final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
-          final ampm = d.hour < 12 ? "AM" : "PM";
-          final min = d.minute.toString().padLeft(2, '0');
-          ledgerDate = "${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year} ${h.toString().padLeft(2, '0')}:$min $ampm";
-        } else {
-          ledgerDate = "-";
-        }
-        sheet.appendRow([
-          TextCellValue(entry['username'] ?? ""),
-          TextCellValue(entry['debitAmount']?.toString() ?? ""),
-          TextCellValue(entry['creditAmount']?.toString() ?? ""),
-          TextCellValue(entry['balance']?.toString() ?? ""),
-          TextCellValue(ledgerDate),
-        ]);
-      }
-      if (displayedLedgerList.isEmpty) {
-        sheet.appendRow([
-          TextCellValue('No records found'),
-          TextCellValue(''),
-          TextCellValue(''),
-          TextCellValue(''),
-          TextCellValue(''),
-        ]);
-      }
-      final directory = await getApplicationDocumentsDirectory();
-      final filePath = "${directory.path}/report_${DateTime.now().millisecondsSinceEpoch}.xlsx";
-      final fileBytes = excel.encode();
-      final file = File(filePath);
-      await file.writeAsBytes(fileBytes!);
-
-      setState(() {
-        isExcelGenerating = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Excel downloaded: $filePath")),
-      );
-      await OpenFile.open(filePath);
-    } catch (e) {
-      setState(() {
-        isExcelGenerating = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error generating Excel: $e")),
       );
     }
   }
