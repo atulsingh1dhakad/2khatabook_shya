@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../LIST_LANG.dart';
 import 'homescreen.dart';
 
 const String loginAuthUrl = "http://account.galaxyex.xyz/v1/user/api//user/login";
@@ -19,6 +20,22 @@ class _EmailLoginScreenState extends State<EmailLoginScreen> {
   final TextEditingController _loginIdController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
+
+  Future<void> _handleLoginSuccess(Map<String, dynamic> user) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // Prefer language from user profile if available, else default to 'en'
+    String langCode = 'en';
+    if (user['language'] != null && user['language'].toString().isNotEmpty) {
+      langCode = user['language'].toString();
+    } else {
+      // Try to read last used from prefs, fallback to 'en'
+      langCode = prefs.getString('app_language') ?? 'en';
+    }
+
+    await prefs.setString('app_language', langCode);
+    await AppStrings.setLanguage(langCode);
+  }
 
   void _sendLoginRequest(String loginId, String password) async {
     if (loginId.isEmpty || password.isEmpty) {
@@ -57,8 +74,14 @@ class _EmailLoginScreenState extends State<EmailLoginScreen> {
             await prefs.setString("userType", user["userType"].toString());
             await prefs.setString("userName", user["name"].toString());
             print("Saved userId: ${user["userId"]}, userType: ${user["userType"]}, userName: ${user["name"]}");
+
+            // Set language after successful login
+            await _handleLoginSuccess(user);
           } else {
             print("WARNING: User info not found in login response. Permission checks may fail.");
+            // But still set language to 'en' so HomeScreen does not crash
+            await AppStrings.setLanguage('en');
+            await prefs.setString('app_language', 'en');
           }
 
           if (!mounted) return;

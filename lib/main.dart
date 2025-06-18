@@ -19,18 +19,19 @@ final http.Client httpClient = InterceptedClient.build(
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Initialize language for AppStrings before building any widget.
-  final prefs = await SharedPreferences.getInstance();
-  final langCode = prefs.getString('selected_language_code') ?? 'en';
-  AppStrings.setLanguage(langCode);
-
-
-  runApp(const MyApp());
+  // Do NOT set language here. Only set after user login or after first open if user selects.
+  runApp(MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  // We do NOT set _locale here; language will be set after login or on first open.
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -55,22 +56,39 @@ class _EntryGateState extends State<EntryGate> {
   @override
   void initState() {
     super.initState();
-    _decideNavigation();
+    _startNavigation();
+  }
+
+  void _startNavigation() {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _decideNavigation();
+    });
   }
 
   Future<void> _decideNavigation() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
 
-    bool isFirstOpen = prefs.getBool('is_first_open') ?? true;
+      // Always clear everything if is_first_open is not set or true
+      bool isFirstOpen = prefs.getBool('is_first_open') ?? true;
 
-    if (isFirstOpen) {
-      await prefs.setBool('is_first_open', false);
-      _pushReplace(const EmailLoginScreen());
-      return;
-    }
+      if (isFirstOpen) {
+        await prefs.clear();
+        await prefs.setBool('is_first_open', false);
 
-    String? token = prefs.getString('auth_token');
-    if (token != null && token.isNotEmpty) {
+        // DO NOT set language here on first open
+        // Optionally: Show a language picker screen here, or just go to login
+
+        _pushReplace(const EmailLoginScreen());
+        return;
+      }
+
+      String? token = prefs.getString('auth_token');
+      if (token == null || token.trim().isEmpty) {
+        _pushReplace(const EmailLoginScreen());
+        return;
+      }
+
       int? expiryTimestamp = prefs.getInt('token_expiry');
       if (expiryTimestamp != null) {
         final now = DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
@@ -82,24 +100,24 @@ class _EntryGateState extends State<EntryGate> {
         }
       }
 
+      // Only set language if the user has logged in before (not on first open)
+      String langCode = prefs.getString('app_language') ?? 'en';
+      await AppStrings.setLanguage(langCode);
+
       bool? isSecurityActive = await _checkSecurityActive(token);
 
-      // If API call fails, treat as security OFF (let user in normally).
       if (isSecurityActive == true) {
         _pushReplace(const CustomCalculatorScreen());
       } else {
-        // security is OFF or error: go to homescreen directly
         _pushReplace(const HomeScreen());
       }
-    } else {
+    } catch (e, st) {
+      print("Exception in _decideNavigation: $e\n$st");
+      // Do NOT set language here on first open
       _pushReplace(const EmailLoginScreen());
     }
   }
 
-  /// Returns:
-  ///   - true  : if security is active
-  ///   - false : if security is not active
-  ///   - null  : if network/server error or unexpected response
   Future<bool?> _checkSecurityActive(String token) async {
     try {
       final url = Uri.parse("http://account.galaxyex.xyz/v1/user/api/setting/get-security");
@@ -111,10 +129,8 @@ class _EntryGateState extends State<EntryGate> {
           return data["data"]["isActive"] == true;
         }
       }
-      // Any non-200 or unexpected response is an error (treat as security OFF)
       return false;
     } catch (e) {
-      // Any network/server error is treated as security OFF
       return false;
     }
   }
@@ -122,11 +138,9 @@ class _EntryGateState extends State<EntryGate> {
   void _pushReplace(Widget screen) {
     if (_navigated) return;
     _navigated = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => screen),
-      );
-    });
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => screen),
+    );
   }
 
   @override
