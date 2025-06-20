@@ -227,7 +227,7 @@ class _ReportScreenState extends State<ReportScreen> {
       }
 
       String nowString = getFormattedDate(DateTime.now());
-      String exportCompanyName = widget.companyName ?? "Unknown"; // <--- Always use passed companyName
+      String exportCompanyName = widget.companyName ?? "Unknown";
 
       List<Map<String, dynamic>> displayedLedgerList = ledgerList.where((entry) {
         int millis = int.tryParse(entry['ledgerDate']?.toString() ?? "0") ?? 0;
@@ -340,7 +340,7 @@ class _ReportScreenState extends State<ReportScreen> {
       }
 
       String nowString = getFormattedDate(DateTime.now());
-      String exportCompanyName = widget.companyName ?? "Unknown"; // <--- Always use passed companyName
+      String exportCompanyName = widget.companyName ?? "Unknown";
 
       List<Map<String, dynamic>> displayedLedgerList = ledgerList.where((entry) {
         int millis = int.tryParse(entry['ledgerDate']?.toString() ?? "0") ?? 0;
@@ -718,16 +718,12 @@ class _ReportScreenState extends State<ReportScreen> {
           children: [
             Expanded(
               child: OutlinedButton.icon(
-                icon: isDownloading
-                    ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Color(0xFFD32F2F)))
-                    : const Icon(
-                  Icons.picture_as_pdf,
-                  color: Color(0xFFD32F2F),
-                  size: 20,
+                icon: Image.asset(
+                  "assets/images/pdf.png",
+                  width: 20,
+                  height: 20,
+                  fit: BoxFit.contain,
+                  color: null,
                 ),
                 label: Text(
                   "Download PDF",
@@ -749,16 +745,12 @@ class _ReportScreenState extends State<ReportScreen> {
             const SizedBox(width: 12),
             Expanded(
               child: OutlinedButton.icon(
-                icon: isExcelGenerating
-                    ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Color(0xFF388E3C)))
-                    : const Icon(
-                  Icons.grid_on_rounded,
-                  color: Color(0xFF388E3C),
-                  size: 20,
+                icon: Image.asset(
+                  "assets/images/excel.png",
+                  width: 20,
+                  height: 20,
+                  fit: BoxFit.contain,
+                  color: null,
                 ),
                 label: const Text(
                   "Download Excel",
