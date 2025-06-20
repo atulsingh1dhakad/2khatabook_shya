@@ -1,8 +1,12 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:Calculator/presentation/sidebarscreen.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:open_file/open_file.dart';
 import '../LIST_LANG.dart';
 import '../ledgerdetails.dart';
 import 'youwillgive.dart';
@@ -41,6 +45,10 @@ class _CustomerDetailsState extends State<CustomerDetails>
   String accountName = '';
   String accountRemark = '';
   bool dataChanged = false;
+
+  // Download state
+  bool isDownloadingPdf = false;
+  bool isDownloadingExcel = false;
 
   // Permission control
   bool _accessLoaded = false;
@@ -275,6 +283,168 @@ class _CustomerDetailsState extends State<CustomerDetails>
         ],
       ),
     );
+  }
+
+  Future<bool> requestStoragePermission() async {
+    if (!Platform.isAndroid) return true;
+    int sdkInt = 30;
+    try {
+      sdkInt = 31; // Assume Android 11+ for most new devices.
+    } catch (_) {}
+    if (sdkInt >= 30) {
+      var status = await Permission.manageExternalStorage.status;
+      if (!status.isGranted) {
+        status = await Permission.manageExternalStorage.request();
+        if (!status.isGranted) {
+          await openAppSettings();
+          return false;
+        }
+      }
+      return true;
+    } else {
+      var status = await Permission.storage.status;
+      if (!status.isGranted) {
+        status = await Permission.storage.request();
+        if (!status.isGranted) return false;
+      }
+      return true;
+    }
+  }
+
+  Future<void> downloadPdfForAccount() async {
+    setState(() { isDownloadingPdf = true; });
+    try {
+      if (!await requestStoragePermission()) {
+        setState(() { isDownloadingPdf = false; });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Storage permission denied.")),
+        );
+        return;
+      }
+      final prefs = await SharedPreferences.getInstance();
+      final authKey = prefs.getString("auth_token");
+      if (authKey == null) throw Exception("Missing auth token");
+
+      final now = DateTime.now();
+      String nowString = "${now.day.toString().padLeft(2, '0')}-${now.month.toString().padLeft(2, '0')}-${now.year} "
+          "${(now.hour % 12 == 0 ? 12 : now.hour % 12).toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')} "
+          "${now.hour < 12 ? "AM" : "PM"}";
+
+      final Map<String, String> queryParams = {
+        "companyName": accountName,
+        "updateAt": nowString,
+        "totelCredit": totalCredit.toStringAsFixed(2),
+        "totelDebit": totalDebit.toStringAsFixed(2),
+        "totelBalance": totalBalance.toStringAsFixed(2),
+        "row": jsonEncode(ledger),
+      };
+
+      final uri = Uri.http(
+        "account.galaxyex.xyz",
+        "/v1/user/api/account/generate-pdf",
+        queryParams,
+      );
+
+      final response = await http.get(uri, headers: {
+        "Authkey": authKey,
+        "Content-Type": "application/json",
+      });
+
+      if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
+        if (response.bodyBytes.length > 4 &&
+            response.bodyBytes[0] == 0x25 &&
+            response.bodyBytes[1] == 0x50 &&
+            response.bodyBytes[2] == 0x44 &&
+            response.bodyBytes[3] == 0x46) {
+          final directory = await getApplicationDocumentsDirectory();
+          final filePath = '${directory.path}/customer_${accountName}_${DateTime.now().millisecondsSinceEpoch}.pdf';
+          final file = File(filePath);
+          await file.writeAsBytes(response.bodyBytes);
+          setState(() { isDownloadingPdf = false; });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("PDF downloaded: $filePath")),
+          );
+          await OpenFile.open(filePath);
+        } else {
+          setState(() { isDownloadingPdf = false; });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Invalid PDF data.")),
+          );
+        }
+      } else {
+        setState(() { isDownloadingPdf = false; });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Failed to download PDF: ${response.statusCode}")),
+        );
+      }
+    } catch (e) {
+      setState(() { isDownloadingPdf = false; });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e")),
+      );
+    }
+  }
+
+  Future<void> downloadExcelForAccount() async {
+    setState(() { isDownloadingExcel = true; });
+    try {
+      if (!await requestStoragePermission()) {
+        setState(() { isDownloadingExcel = false; });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Storage permission denied.")),
+        );
+        return;
+      }
+      final prefs = await SharedPreferences.getInstance();
+      final authKey = prefs.getString("auth_token");
+      if (authKey == null) throw Exception("Missing auth token");
+
+      final now = DateTime.now();
+      String nowString = "${now.day.toString().padLeft(2, '0')}-${now.month.toString().padLeft(2, '0')}-${now.year} "
+          "${(now.hour % 12 == 0 ? 12 : now.hour % 12).toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')} "
+          "${now.hour < 12 ? "AM" : "PM"}";
+      final Map<String, String> queryParams = {
+        "companyName": accountName,
+        "updateAt": nowString,
+        "totelCredit": totalCredit.toStringAsFixed(2),
+        "totelDebit": totalDebit.toStringAsFixed(2),
+        "totelBalance": totalBalance.toStringAsFixed(2),
+        "row": jsonEncode(ledger),
+      };
+
+      final uri = Uri.http(
+        "account.galaxyex.xyz",
+        "/v1/user/api/account/generate-excel",
+        queryParams,
+      );
+
+      final response = await http.get(uri, headers: {
+        "Authkey": authKey,
+        "Content-Type": "application/json",
+      });
+
+      if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
+        final directory = await getApplicationDocumentsDirectory();
+        final filePath = "${directory.path}/customer_${accountName}_${DateTime.now().millisecondsSinceEpoch}.xlsx";
+        final file = File(filePath);
+        await file.writeAsBytes(response.bodyBytes);
+        setState(() { isDownloadingExcel = false; });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Excel downloaded: $filePath")),
+        );
+        await OpenFile.open(filePath);
+      } else {
+        setState(() { isDownloadingExcel = false; });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Failed to download Excel: ${response.statusCode}")),
+        );
+      }
+    } catch (e) {
+      setState(() { isDownloadingExcel = false; });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e")),
+      );
+    }
   }
 
   String formatDateTime(int milliseconds) {
@@ -545,7 +715,6 @@ class _CustomerDetailsState extends State<CustomerDetails>
 
     final reversedRunningBalances = _reversedRunningBalances();
 
-    // Disable if staff with "VIEW" permission or while access is loading
     bool disableButtons = false;
     if (_userType.trim().toUpperCase() == "STAFF") {
       disableButtons = !_accessLoaded || _isViewOnly;
@@ -585,6 +754,48 @@ class _CustomerDetailsState extends State<CustomerDetails>
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
+                        // PDF as image
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 2),
+                          child: GestureDetector(
+                            onTap: isDownloadingPdf ? null : downloadPdfForAccount,
+                            child: isDownloadingPdf
+                                ? SizedBox(
+                                width: 28,
+                                height: 28,
+                                child: CircularProgressIndicator(
+                                    color: Colors.red[300], strokeWidth: 2))
+                                : Image.asset(
+                              "assets/images/pdf.png",
+                              width: 28,
+                              height: 28,
+                              fit: BoxFit.contain,
+                              color: null,
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 20,),
+                        // Excel as image
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 2),
+                          child: GestureDetector(
+                            onTap: isDownloadingExcel ? null : downloadExcelForAccount,
+                            child: isDownloadingExcel
+                                ? SizedBox(
+                                width: 28,
+                                height: 28,
+                                child: CircularProgressIndicator(
+                                    color: Colors.green[700], strokeWidth: 2))
+                                : Image.asset(
+                              "assets/images/excel.png",
+                              width: 28,
+                              height: 28,
+                              fit: BoxFit.contain,
+                              color: null,
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 20,),
                         IconButton(
                           icon: Icon(Icons.edit, color: disableButtons ? Colors.grey[300] : Colors.white),
                           onPressed: disableButtons
