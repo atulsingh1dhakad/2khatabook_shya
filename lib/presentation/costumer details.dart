@@ -761,14 +761,14 @@ class _CustomerDetailsState extends State<CustomerDetails>
                             onTap: isDownloadingPdf ? null : downloadPdfForAccount,
                             child: isDownloadingPdf
                                 ? SizedBox(
-                                width: 28,
-                                height: 28,
+                                width: 20,
+                                height: 20,
                                 child: CircularProgressIndicator(
                                     color: Colors.red[300], strokeWidth: 2))
                                 : Image.asset(
                               "assets/images/pdf.png",
-                              width: 28,
-                              height: 28,
+                              width: 22,
+                              height: 22,
                               fit: BoxFit.contain,
                               color: null,
                             ),
@@ -787,15 +787,15 @@ class _CustomerDetailsState extends State<CustomerDetails>
                                 child: CircularProgressIndicator(
                                     color: Colors.green[700], strokeWidth: 2))
                                 : Image.asset(
-                              "assets/images/excel.png",
-                              width: 28,
-                              height: 28,
+                              "assets/images/ms-excel.png",
+                              width: 22,
+                              height: 22,
                               fit: BoxFit.contain,
                               color: null,
                             ),
                           ),
                         ),
-                        SizedBox(width: 20,),
+                        SizedBox(width: 6,),
                         IconButton(
                           icon: Icon(Icons.edit, color: disableButtons ? Colors.grey[300] : Colors.white),
                           onPressed: disableButtons
