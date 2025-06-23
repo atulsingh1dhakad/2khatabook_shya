@@ -502,7 +502,6 @@ class _ReportScreenState extends State<ReportScreen> {
     });
 
     final runningBalancesList = runningBalancesForList(displayedLedgerList);
-
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -512,6 +511,7 @@ class _ReportScreenState extends State<ReportScreen> {
         backgroundColor: const Color(0xFF22587a),
         elevation: 0,
         leading: const BackButton(color: Colors.white),
+
       ),
       backgroundColor: const Color(0xFFEAEAEA),
       body: isLoading
@@ -719,7 +719,7 @@ class _ReportScreenState extends State<ReportScreen> {
             Expanded(
               child: OutlinedButton.icon(
                 icon: Image.asset(
-                  "assets/images/pdf.png",
+                  "assets/images/pdf0.png",
                   width: 20,
                   height: 20,
                   fit: BoxFit.contain,
