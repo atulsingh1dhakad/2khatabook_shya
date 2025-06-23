@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:Calculator/presentation/Reportscreen.dart';
+import 'package:Calculator/presentation/followup.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -1034,6 +1035,28 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ro
                     label: Text(AppStrings.getString("filters"),
                         style: const TextStyle(color: Color(0xFF205781), fontWeight: FontWeight.w600)),
                     onPressed: _showFilterBottomSheet,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                SizedBox(
+                  height: 49,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      elevation: 0,
+                      backgroundColor: Colors.white,
+                      foregroundColor: const Color(0xFF205781),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        side: const BorderSide(color: Color(0xFF205781), width: 1),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                    ),
+                    icon: const Icon(Icons.add_circle_outline, color: Color(0xFF205781)),
+                    label: Text(AppStrings.getString("followUp"),
+                        style: const TextStyle(color: Color(0xFF205781), fontWeight: FontWeight.w600)),
+                    onPressed: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => FollowupScreen(),));
+                    },
                   ),
                 ),
               ],
