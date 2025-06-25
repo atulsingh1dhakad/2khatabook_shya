@@ -5,6 +5,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../LIST_LANG.dart';
 import 'addfollowup.dart';
 
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const MaterialApp(
+    home: FollowupScreen(),
+    debugShowCheckedModeBanner: false,
+  ));
+}
+
 class FollowupScreen extends StatefulWidget {
   final VoidCallback? onStaffAdded;
   final Map<String, dynamic>? staffData;
@@ -37,7 +45,7 @@ class _FollowupScreenState extends State<FollowupScreen> {
       errorMessage = null;
     });
 
-    final url = "http://128.199.21.76:3033/api/setting/get-followup";
+    final url = "http://account.galaxyex.xyz/v1/user/api/setting/get-followup";
     final authKey = await getAuthToken();
     if (authKey == null) {
       setState(() {
@@ -80,6 +88,226 @@ class _FollowupScreenState extends State<FollowupScreen> {
         isLoading = false;
       });
     }
+  }
+
+  Future<void> deleteFollowup(String id) async {
+    final authKey = await getAuthToken();
+    if (authKey == null) return;
+    final url = "http://account.galaxyex.xyz/v1/user/api/setting/delete-followup/$id";
+    try {
+      final response = await http.delete(
+        Uri.parse(url),
+        headers: {
+          "Authkey": authKey,
+          "Content-Type": "application/json",
+        },
+      );
+      if (response.statusCode == 200) {
+        await fetchFollowupList();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(AppStrings.getString("deletedSuccessfully") ?? "Deleted successfully")),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(AppStrings.getString("deleteFailed") ?? "Delete failed")),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppStrings.getString("error") ?? "Error: $e")),
+      );
+    }
+  }
+
+  static String _formatDate(dynamic msSinceEpoch) {
+    if (msSinceEpoch == null) return '';
+    try {
+      final dt = DateTime.fromMillisecondsSinceEpoch(msSinceEpoch is int ? msSinceEpoch : int.parse(msSinceEpoch.toString()));
+      return "${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}";
+    } catch (_) {
+      return '';
+    }
+  }
+
+  Widget buildChatBubble(Map<String, dynamic> followup, {bool isReceived = true}) {
+    final name = followup['name'] ?? '';
+    final loginId = followup['loginId'] ?? '';
+    final remark = followup['remark'] ?? '';
+    final date = _formatDate(followup['date']);
+    final initials = (name.isNotEmpty) ? name[0].toUpperCase() : "?";
+    final id = followup['id']?.toString() ?? followup['_id']?.toString() ?? '';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisAlignment: isReceived ? MainAxisAlignment.start : MainAxisAlignment.end,
+        children: [
+          if (isReceived)
+            Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: CircleAvatar(
+                radius: 20,
+                backgroundColor: const Color(0xFF265E85),
+                child: Text(
+                  initials,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+              ),
+            ),
+          Flexible(
+            child: GestureDetector(
+              onTap: () => showFollowupDetails(followup),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                margin: const EdgeInsets.only(right: 6),
+                decoration: BoxDecoration(
+                  color: isReceived ? Colors.white : const Color(0xFF265E85),
+                  borderRadius: BorderRadius.only(
+                    topLeft: const Radius.circular(18),
+                    topRight: const Radius.circular(18),
+                    bottomLeft: Radius.circular(isReceived ? 0 : 18),
+                    bottomRight: Radius.circular(isReceived ? 18 : 0),
+                  ),
+                  border: Border.all(
+                    color: const Color(0xFF265E85).withOpacity(0.3),
+                    width: 1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.22),
+                      blurRadius: 8,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Chat content
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: isReceived ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            name,
+                            style: TextStyle(
+                              color: isReceived ? const Color(0xFF265E85) : Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          if (loginId.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                "${AppStrings.getString("userId")}: $loginId",
+                                style: TextStyle(
+                                  color: isReceived ? Colors.black87 : Colors.white70,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          if (remark.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                "${AppStrings.getString("remark")}: $remark",
+                                style: TextStyle(
+                                  color: isReceived ? Colors.black54 : Colors.white70,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          if (date.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                date,
+                                style: TextStyle(
+                                  color: isReceived ? Colors.black38 : Colors.white38,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    // Edit and Delete icons (reduced spacing)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit, color: Colors.green, size: 20),
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => AddFollowupScreen(
+                                  onFollowupAdded: fetchFollowupList,
+                                  followupData: followup, // Add this param in AddFollowupScreen
+                                ),
+                              ),
+                            );
+                          },
+                          tooltip: AppStrings.getString("edit") ?? "Edit",
+                        ),
+                        SizedBox(width: 4),
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          onPressed: () async {
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text("Confirm Delete"),
+                                content: const Text("Are you sure you want to delete this follow-up?"),
+                                actions: [
+                                  TextButton(
+                                    child: const Text("Cancel"),
+                                    onPressed: () => Navigator.pop(ctx, false),
+                                  ),
+                                  TextButton(
+                                    child: const Text("Delete", style: TextStyle(color: Colors.red)),
+                                    onPressed: () => Navigator.pop(ctx, true),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (confirm == true && id.isNotEmpty) {
+                              await deleteFollowup(id);
+                            }
+                          },
+                          tooltip: AppStrings.getString("delete") ?? "Delete",
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          if (!isReceived)
+            Padding(
+              padding: const EdgeInsets.only(left: 8.0),
+              child: CircleAvatar(
+                radius: 20,
+                backgroundColor: Colors.grey[400],
+                child: const Icon(Icons.person, color: Colors.white),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 
   void showFollowupDetails(Map<String, dynamic> followup) {
@@ -127,8 +355,15 @@ class _FollowupScreenState extends State<FollowupScreen> {
                       Expanded(
                         child: ElevatedButton.icon(
                           onPressed: () {
-                            Navigator.pop(context);
-                            // Optionally add edit functionality here
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => AddFollowupScreen(
+                                  onFollowupAdded: fetchFollowupList,
+                                  followupData: followup, // Add this param in AddFollowupScreen
+                                ),
+                              ),
+                            );
                           },
                           icon: const Icon(Icons.edit, color: Colors.white),
                           label: Text(AppStrings.getString("edit"), style: const TextStyle(color: Colors.white)),
@@ -180,108 +415,6 @@ class _FollowupScreenState extends State<FollowupScreen> {
     ),
   );
 
-  Widget buildFollowupItem(Map<String, dynamic> followup) {
-    final name = followup['name'] ?? 'N/A';
-    final loginId = followup['loginId'] ?? 'N/A';
-    final remark = followup['remark'] ?? '';
-    final date = _formatDate(followup['date']);
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: () => showFollowupDetails(followup),
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 12),
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: const Color(0xFF265E85), width: 1),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black12.withOpacity(0.04),
-              blurRadius: 2,
-              offset: const Offset(0, 1),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: const Color(0xFF265E85),
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: Text(
-                  name.isNotEmpty ? name[0].toUpperCase() : '',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 22,
-                    letterSpacing: 1,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    name,
-                    style: const TextStyle(
-                      color: Color(0xFF265E85),
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    "${AppStrings.getString("userId")}: $loginId",
-                    style: const TextStyle(
-                      color: Colors.black87,
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    "${AppStrings.getString("remark")}: $remark",
-                    style: const TextStyle(
-                      color: Colors.black54,
-                      fontSize: 13,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    "Date: $date",
-                    style: const TextStyle(
-                      color: Colors.black54,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(Icons.arrow_forward_ios, color: Colors.grey[500], size: 22),
-          ],
-        ),
-      ),
-    );
-  }
-
-  static String _formatDate(dynamic msSinceEpoch) {
-    if (msSinceEpoch == null) return 'N/A';
-    try {
-      final dt = DateTime.fromMillisecondsSinceEpoch(msSinceEpoch is int ? msSinceEpoch : int.parse(msSinceEpoch.toString()));
-      return "${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}";
-    } catch (_) {
-      return 'N/A';
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -293,37 +426,40 @@ class _FollowupScreenState extends State<FollowupScreen> {
       ),
       backgroundColor: const Color(0xFFF4F6FA),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          child: Column(
-            children: [
-              Expanded(
-                child: isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : errorMessage != null
-                    ? Center(child: Text(errorMessage!))
-                    : followupList.isEmpty
-                    ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.inbox, size: 60, color: Colors.grey.withOpacity(0.7)),
-                      const SizedBox(height: 12),
-                      Text(
-                        AppStrings.getString("noFollowupAvailableAddNow") ?? "No follow-up available, add now!",
-                        style: TextStyle(fontSize: 17, color: Colors.grey[700]),
-                      ),
-                    ],
-                  ),
-                )
-                    : ListView.builder(
-                  padding: const EdgeInsets.only(top: 18, bottom: 12),
-                  itemCount: followupList.length,
-                  itemBuilder: (context, index) => buildFollowupItem(followupList[index]),
+        child: Column(
+          children: [
+            Expanded(
+              child: isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : errorMessage != null
+                  ? Center(child: Text(errorMessage!))
+                  : followupList.isEmpty
+                  ? Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.chat_bubble_outline, size: 60, color: Colors.grey.withOpacity(0.7)),
+                    const SizedBox(height: 12),
+                    Text(
+                      AppStrings.getString("noFollowupAvailableAddNow") ?? "No follow-up available, add now!",
+                      style: TextStyle(fontSize: 17, color: Colors.grey[700]),
+                    ),
+                  ],
                 ),
+              )
+                  : ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 18),
+                itemCount: followupList.length,
+                itemBuilder: (context, index) {
+                  // All followup bubbles appear as received (left-aligned)
+                  return buildChatBubble(followupList[index], isReceived: true);
+                },
               ),
-              const SizedBox(height: 6),
-              SizedBox(
+            ),
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              child: SizedBox(
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton.icon(
@@ -351,9 +487,9 @@ class _FollowupScreenState extends State<FollowupScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 16), // bottom spacing
-            ],
-          ),
+            ),
+            const SizedBox(height: 16), // bottom spacing
+          ],
         ),
       ),
     );

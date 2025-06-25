@@ -6,7 +6,9 @@ import '../LIST_LANG.dart';
 
 class AddFollowupScreen extends StatefulWidget {
   final VoidCallback? onFollowupAdded;
-  const AddFollowupScreen({super.key, this.onFollowupAdded});
+  final Map<String, dynamic>? followupData;
+
+  const AddFollowupScreen({super.key, this.onFollowupAdded, this.followupData});
 
   @override
   State<AddFollowupScreen> createState() => _AddFollowupScreenState();
@@ -28,12 +30,25 @@ class _AddFollowupScreenState extends State<AddFollowupScreen> {
   OverlayEntry? _overlayEntry;
   final GlobalKey _fieldKey = GlobalKey();
 
+  bool get isEditing => widget.followupData != null;
+
   @override
   void initState() {
     super.initState();
     fetchUserList();
     customerController.addListener(_onCustomerTextChanged);
     customerFocusNode.addListener(_handleFocusChange);
+
+    // If editing, pre-fill fields
+    if (isEditing) {
+      final data = widget.followupData!;
+      selectedUserId = data['customerId']?.toString() ?? data['userId']?.toString();
+      selectedUserName = data['name'] != null && data['loginId'] != null
+          ? "${data['name']} (${data['loginId']})"
+          : data['name'] ?? '';
+      customerController.text = selectedUserName ?? '';
+      remarkController.text = data['remark'] ?? '';
+    }
   }
 
   @override
@@ -129,7 +144,7 @@ class _AddFollowupScreenState extends State<AddFollowupScreen> {
   Future<void> fetchUserList() async {
     setState(() => isLoadingUsers = true);
 
-    final url = "http://128.199.21.76:3033/api/user/get-user";
+    final url = "http://account.galaxyex.xyz/v1/user/api/user/get-user";
     final authKey = await getAuthToken();
     if (authKey == null) {
       setState(() => isLoadingUsers = false);
@@ -163,9 +178,9 @@ class _AddFollowupScreenState extends State<AddFollowupScreen> {
     }
   }
 
-  Future<void> addFollowup() async {
+  Future<void> addOrUpdateFollowup() async {
     setState(() => isSubmitting = true);
-    final url = "http://128.199.21.76:3033/api/setting/add-followup";
+
     final authKey = await getAuthToken();
     if (authKey == null) {
       setState(() => isSubmitting = false);
@@ -176,32 +191,54 @@ class _AddFollowupScreenState extends State<AddFollowupScreen> {
     }
 
     try {
-      final body = {
+      Map<String, dynamic> body = {
         "customerId": selectedUserId,
       };
       if (remarkController.text.trim().isNotEmpty) {
         body["remark"] = remarkController.text.trim();
       }
 
-      final response = await http.post(
-        Uri.parse(url),
-        headers: {
-          "Authkey": authKey,
-          "Content-Type": "application/json",
-        },
-        body: json.encode(body),
-      );
-      final Map<String, dynamic> jsonData = json.decode(response.body);
-      if (response.statusCode == 200 && jsonData['meta']?['status'] == true) {
+      Uri url;
+      http.Response response;
+      Map<String, dynamic> jsonData;
+
+      if (isEditing) {
+        // Use update API endpoint
+        final id = widget.followupData?['id']?.toString() ?? widget.followupData?['_id']?.toString();
+        url = Uri.parse("http://128.199.21.76:3033/api/setting/update-followup/$id");
+        response = await http.put(
+          url,
+          headers: {
+            "Authkey": authKey,
+            "Content-Type": "application/json",
+          },
+          body: json.encode(body),
+        );
+        jsonData = json.decode(response.body);
+      } else {
+        // Use add API endpoint
+        url = Uri.parse("http://128.199.21.76:3033/api/setting/add-followup");
+        response = await http.post(
+          url,
+          headers: {
+            "Authkey": authKey,
+            "Content-Type": "application/json",
+          },
+          body: json.encode(body),
+        );
+        jsonData = json.decode(response.body);
+      }
+
+      if ((response.statusCode == 200 || response.statusCode == 201) && jsonData['meta']?['status'] == true) {
         widget.onFollowupAdded?.call();
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(jsonData['meta']?['msg'] ?? "FollowUp added successfully")),
+          SnackBar(content: Text(jsonData['meta']?['msg'] ?? (isEditing ? "FollowUp updated successfully" : "FollowUp added successfully"))),
         );
       } else {
         setState(() => isSubmitting = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(jsonData['meta']?['msg'] ?? "Failed to add follow-up")),
+          SnackBar(content: Text(jsonData['meta']?['msg'] ?? (isEditing ? "Failed to update follow-up" : "Failed to add follow-up"))),
         );
       }
     } catch (e) {
@@ -226,7 +263,7 @@ class _AddFollowupScreenState extends State<AddFollowupScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(AppStrings.getString("addFollowup") ?? "Add Follow Up", style: const TextStyle(color: Colors.white)),
+        title: Text(isEditing ? (AppStrings.getString("editFollowup") ?? "Edit Follow Up") : (AppStrings.getString("addFollowup") ?? "Add Follow Up"), style: const TextStyle(color: Colors.white)),
         backgroundColor: const Color(0xFF265E85),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
@@ -289,7 +326,7 @@ class _AddFollowupScreenState extends State<AddFollowupScreen> {
                         ? null
                         : () {
                       if (_formKey.currentState?.validate() ?? false) {
-                        addFollowup();
+                        addOrUpdateFollowup();
                       }
                     },
                     style: ElevatedButton.styleFrom(
@@ -307,7 +344,12 @@ class _AddFollowupScreenState extends State<AddFollowupScreen> {
                         strokeWidth: 2,
                       ),
                     )
-                        : Text(AppStrings.getString("addFollowup"),style: TextStyle(color: Colors.white,fontSize: 15) ),
+                        : Text(
+                      isEditing
+                          ? (AppStrings.getString("updateFollowup") ?? "Update Follow Up")
+                          : (AppStrings.getString("addFollowup") ?? "Add Follow Up"),
+                      style: const TextStyle(color: Colors.white, fontSize: 15),
+                    ),
                   ),
                 ),
               ],
